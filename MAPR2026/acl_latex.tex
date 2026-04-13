@@ -1,0 +1,615 @@
+\pdfoutput=1
+\documentclass[11pt]{article}
+
+% ACL style
+\usepackage{acl}
+\usepackage{natbib}
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{enumitem}
+\usepackage{xurl}
+\usepackage{textcomp}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage[utf8]{inputenc}
+\usepackage[T5,T1]{fontenc}
+\usepackage[vietnamese,english]{babel}
+
+\title{Hate Speech Detection and Highlighting\\in Vietnamese Social Media Comments}
+\author{
+  \textbf{Phat Nguyen Cong}$^{1,2}$, \textbf{An Nguyen Xuan}$^{1,2}$, \textbf{Binh Mai Thai}$^{1,2}$, \\ % Ngắt hàng tại đây
+  \textbf{An Truong Hoang Thanh}$^{1,2}$, \textbf{Huong Nguyen Le Quynh}$^{1,2}$ \\
+  \addlinespace[0.2cm] % Tạo khoảng cách nhỏ giữa tên và địa chỉ
+  $^1$University of Information Technology, Ho Chi Minh City, Vietnam \\
+  $^2$Vietnam National University, Ho Chi Minh City, Vietnam \\
+  \texttt{\{23521143, 23520023, 23520158, 23520032, 21520255\}@gm.uit.edu.vn}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The rise of hate speech on Vietnamese social media has created a real need for systems that
+can understand deep context rather than just a simple classification. In this work, we tackle
+the challenge of target-specific and implicit hate speech by introducing the HARE framework.
+By integrating Chain-of-Thought (CoT) reasoning into the Qwen2.5-3B model, our approach
+moves beyond traditional ``black-box'' models. Instead of just providing a classification label, HARE generates semantic explanations to reveal
+the hidden intent behind a text, using a two-stage training process on the ViTHSD dataset.
+Our experiments show that the model achieves an F1-score of 60.26\%, outperforming
+benchmarks like PhoBERT and Flan-T5, especially in the politics category with a notable
+24.87\% jump. Finally, we provide a practical architecture for deploying this solution on
+large-scale streaming platforms like Apache Kafka and Spark, integrating keyword highlighting
+features, proving that our approach is ready for real-world use.
+\end{abstract}
+
+\section{Introduction}
+
+\subsection{Overview of Social Media Challenges in Vietnam}
+In recent years, social media has become a central part of public life in Vietnam. Platforms
+such as Facebook, YouTube, and TikTok are now the main places where people discuss
+everyday topics. However, this openness has also led to a rise in toxic language, creating a
+serious challenge for keeping these online spaces safe.
+
+One major difficulty in detecting this content comes from the special features of the
+Vietnamese language. Vietnamese is monosyllabic and tonal, and meaning often depends on
+cultural context. Today, users often use insulting slang like \foreignlanguage{vietnamese}{\textit{``ba que''}} or \foreignlanguage{vietnamese}{\textit{``bò đỏ''}} along with
+teencode, sarcasm, and wordplay. These creative ways of speaking help harmful content
+avoid basic keyword filters, making it hard for both automated systems and human
+moderators to control.
+
+Therefore, using modern technologies such as pre-trained language models like PhoBERT still
+has some limitations:
+\begin{itemize}[leftmargin=*]
+\item Lack of Explainability: Deep learning models often operate as ``black boxes''
+producing classification labels without providing specific reasoning, which makes it
+difficult to build trust and transparency in content moderation.
+\item Limitation in recognizing implicit hate: Most current models focus so much on
+surface-level keywords that they only catch obvious swearing. They often fail to detect
+``hidden attacks'' because these insults rely on subtle comparisons and cultural context
+rather than explicit hate speech.
+\item Limitation in recognizing target: Most previous research has focused almost entirely
+on how toxic a comment is while overlooking the specific target of the attack.
+Identifying whether the victim is an individual, an organization, or an ethnic group is
+actually a vital piece of information. Knowing exactly who is being targeted is essential
+for assessing the severity of the speech and determining the most appropriate way to
+intervene.
+\end{itemize}
+
+To address these practical challenges, we focus on building an automated system that can
+explain both ``why'' a piece of content is considered hateful and ``who'' is being targeted. This
+objective serves as the foundation for our work with the ViTHSD dataset and the modeling
+approaches that we present in this paper.
+
+\subsection{Objectives of the report}
+This report aims to address the above limitations by developing a comprehensive system
+based on the ViTHSD dataset. The key contributions include:
+\begin{enumerate}[leftmargin=*]
+\item Systematizing the Targeted Hate Speech Problem: We redefine the hate speech
+detection problem in Vietnamese from a target-oriented perspective, using the ViTHSD
+dataset with a multi-layered label structure.
+\item Applying the HARE Framework and CoT: Proposing a process to integrate the
+reasoning capabilities of LLMs to generate explanations (rationales) and implied
+statements, helping the model better understand the context.
+\item Two-Stage Semantic Alignment Training Strategy: Introducing the two-stage
+training method on the Qwen2.5-3B model, which enables the model to learn decision
+boundaries from labeled data and reasoning from rationale data.
+\item Experiments and Evaluation: Providing experimental results comparing with the
+strongest current baselines (PhoBERT, Flan-T5) and a deep analysis of the method's
+effectiveness on challenging labels such as Politics and Group Hate.
+\item Introducing the practical deployment architecture: Introducing an AI-integrated
+system for real-time data streaming using Kafka and Spark, with FastAPI for the
+backend and React and Vite for the frontend, designed for large-scale social media
+monitoring applications.
+\end{enumerate}
+
+\section{Literature Review and Theoretical Background}
+
+\subsection{The Development of Vietnamese NLP and Pre-trained Models}
+Natural Language Processing (NLP) for Vietnamese has undergone a major transformation
+over the last decade. Before 2019, most research relied on hand-crafted features and static
+models like Word2Vec \citep{mikolov2013efficient} or FastText \citep{bojanowski2017enriching}, but the arrival of the Transformer architecture \citep{vaswani2017attention} and
+Google's BERT \citep{devlin2019bert} completely redefined the landscape.
+
+In Vietnam, the release of PhoBERT \citep{nguyen2020phobert} in 2020 marked a significant turning point. Trained on a
+massive 20GB corpus of Vietnamese news and Wikipedia entries, PhoBERT set new
+state-of-the-art standards for tasks ranging from part-of-speech tagging to named entity
+recognition. However, because PhoBERT was built on such formal text, it faces a clear
+``domain gap'' when applied to social media. The messy reality of online comments, filled with
+slang, teencode, and informal grammar, often proves too difficult for these traditional models
+to handle.
+
+The latest trend involves using Large Language Models (LLMs) with strong
+instruction-following capabilities, such as Alibaba's Qwen series. Qwen2.5 \citep{Yang2025Qwen25} has emerged as a
+particularly strong candidate because it offers exceptional support for the Vietnamese
+language. Even when compared to Llama \citep{llama} or Gemma \citep{Mesnard2024Gemma} at the same parameter size, Qwen 
+consistently delivers better results due to its exposure to a more diverse and high-quality
+training dataset.
+
+\subsection{Hate Speech Datasets in Vietnam}
+The foundation of any AI system is its data. In Vietnam, the ViHSD (Vietnamese Hate Speech
+Dataset) \citep{10.1007/978-3-030-79457-6_35} was the first large collection of data to be made public, containing over 30,000
+comments labeled into three categories: Clean, Offensive, and Hate. This dataset has been
+crucial for local research.
+
+However, to better understand these interactions, the ViTHSD \citep{vithsd} (Vietnamese Targeted Hate
+Speech Dataset) was created. While it builds on the data from ViHSD, it adds an important
+new detail: the ``Target.'' This approach is similar to Aspect-Based Sentiment Analysis (ABSA) \citep{Pontiki2014SemEval4},
+where the model doesn't just identify ``what the emotion is'', but also ``what the emotion is
+directed at''.
+
+In ViTHSD, each comment is checked to see if it targets an Individual, a Group, a Religion, an
+Ethnicity, or a Political entity, and it also measures how strong the hate is. This detailed
+information is important for creating smart moderation systems that can keep online spaces
+safe without stopping healthy discussions.
+
+\subsection{Explainable AI and Chain-of-Thought Prompting}
+Explainability is becoming a must-have feature in modern AI. In the field of hate speech
+detection, the HARE framework \citep{Yang2023HARE} introduced at EMNLP 2023 proposed a fresh approach by
+using Large Language Models to generate written explanations. Instead of relying only on
+classification labels, the model is trained on both the labels and the specific reasoning behind
+them.
+
+The core technique for creating these high-quality explanations is Chain-of-Thought
+prompting \citep{Wei2022ChainOfThought}. Research from Google and OpenAI has shown that asking a model to think step by
+step activates its internal reasoning abilities. This allows the model to solve complex problems
+where standard prompting methods often fail.
+
+In the context of the ViTHSD dataset, we use this technique to force the model to analyze
+sentence structures, identify offensive terms, and pinpoint the target before it reaches a final
+conclusion. This approach prevents the model from simply guessing based on keywords and
+encourages a much deeper understanding of the actual meaning of the text.
+
+\section{Analyzing the ViTHSD dataset}
+
+\subsection{Structure and labels definition}
+The ViTHSD dataset was built based on 10,000 selected and cleaned comments from the
+ViHSD dataset. The labels of ViTHSD are the combination of Target and Level, represented in
+the format [target]\#[level].
+
+\textbf{Targets:}
+\begin{enumerate}[leftmargin=*]
+\item Individuals: Comments targeting a specific individual. This is the most common form of
+online abuse.
+\item Groups: Comments directed at organizations, communities, groups, or fandoms.
+\item Religion: Comments targeting religious beliefs, religious figures, or religious
+communities.
+\item Race/Ethnicity: Comments targeting regions, ethnicities, or origins. This is the most
+sensitive and dangerous category.
+\item Politics: Comments related to political views, political parties, government policies, or
+political figures.
+\end{enumerate}
+
+\textbf{Levels:}
+\begin{itemize}[leftmargin=*]
+\item Normal (0): A normal comment that does not contain negative content and does not
+target any specific entity.
+\item Clean (1): The comment mentions a target, but the content is clean, neutral, or positive.
+\item Offensive (2): Contains vulgar, insulting, or mocking language, but does not reach the
+level of hate speech or incitement to violence.
+\item Hate (3): Hateful language that attacks or dehumanizes targets, incites violence,
+promotes discrimination, or uses severe abusive expressions.
+\end{itemize}
+
+A key feature of ViTHSD is its multi-label nature. A comment may contain multiple targets, and
+each target can have a different level. For example:
+\foreignlanguage{vietnamese}{\textit{``Thằng A ngu thế cũng làm ca sĩ
+(\texttt{Individuals\#Offensive}), bọn fan của nó thì cũng súc vật không kém
+(\texttt{Groups\#Hate})''}} 
+
+\subsection{Statistical Analysis of Data Imbalance}
+When analyzing the dataset, we obtain the following detailed distribution table:
+
+\begin{table}[ht]
+\centering
+\setlength{\tabcolsep}{3pt}
+\footnotesize
+\caption{Distribution of samples by Target (Train/Dev/Test)}
+\label{tab:target_dist}
+\resizebox{\columnwidth}{}{%
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Target} & \textbf{Train} & \textbf{Dev} & \textbf{Test} & \textbf{Total} & \textbf{\% } \\
+\midrule
+Individuals    & 5,480 & 938 & 1,398 & 7,816 & $\sim$60\% \\
+Groups         & 2,977 & 517 & 769   & 4,263 & $\sim$33\% \\
+Race/Ethni.    & 502   & 74  & 129   & 705   & $\sim$5\%  \\
+Politics       & 363   & 57  & 89    & 509   & $\sim$4\%  \\
+Religion       & 24    & 8   & 6     & 38    & $<$0.3\%   \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+Our data reveals a significant imbalance across categories. The Individuals group makes up
+the vast majority of the dataset, reflecting the reality of social media where personal disputes
+are most frequent. In contrast, the Politics and Religion categories have very few samples.
+This imbalance creates a major hurdle: traditional machine learning models tend to bias
+toward the majority class. As a result, while these models may become effective at spotting
+personal attacks, they often struggle with hateful comments regarding religion or politics
+because they haven't seen enough examples to generalize properly. The Religion category is
+particularly challenging; with only 24 training samples, it is nearly impossible for a standard
+deep learning model to converge without employing specialized techniques like Data
+Augmentation or Few-shot Learning.
+
+\begin{table}[ht]
+\centering
+\caption{Distribution by Intensity (Level)}
+\label{tab:level_dist}
+% 1. Giảm khoảng cách giữa các cột (mặc định là 6pt, giảm xuống 2pt)
+\setlength{\tabcolsep}{2.5pt} 
+% 2. Dùng cỡ chữ nhỏ (footnotesize hoặc scriptsize)
+\footnotesize 
+% 3. Ép bảng theo chiều ngang của cột
+\resizebox{\columnwidth}{}{%
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Dataset} & \textbf{Normal} & \textbf{Clean} & \textbf{Offen.} & \textbf{Hate} & \textbf{Total} \\
+\midrule
+Train & 1,520 & 2,480 & 1,169 & 1,831 & 7,000 \\
+Dev   & 263   & 454   & 189   & 295   & 1,201 \\
+Test  & 402   & 618   & 324   & 456   & 1,800 \\
+\midrule
+\textbf{Total} & \textbf{2,185} & \textbf{3,552} & \textbf{1,682} & \textbf{2,582} & \textbf{10,001} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+Even though the distribution by Levels is more balanced than by Targets, the CLEAN labels
+still have the highest percentage. This requires our models to have a good Recall to avoid
+missing the case HATE labels hidden among a large number of CLEAN comments.
+
+\subsection{Implied Statement problem}
+An analysis of the ViTHSD dataset reveals that implicit hate speech is widespread. These
+comments avoid direct profanity but still carry a deeply offensive message through underlying
+meaning.
+\begin{itemize}[leftmargin=*]
+\item Example 1: \foreignlanguage{vietnamese}{\textit{``Optimusthree với 99\% sức mạnh''}}.
+\begin{itemize}[leftmargin=*]
+\item Surface level analysis: it shows no offensive words, looks like a compliment about
+strength.
+\item Real-world context: This is a sarcastic statement in the gaming community,
+implying that the player is very weak or performing poorly (only 1\% capability left).
+If the model does not understand this ``meme'' context, it will label it as CLEAN.
+\end{itemize}
+\item Example 2: \foreignlanguage{vietnamese}{\textit{``Lũ ba que xỏ lá.''}}
+\begin{itemize}[leftmargin=*]
+\item Analysis: ``Ba que'' is a political slang term (referring to the yellow flag with three
+red stripes of the former regime), and \foreignlanguage{vietnamese}{\textit{``xỏ lá''}} is an adjective meaning deceitful or
+tricky. Combined, this forms a hate speech statement targeting a political group
+(\texttt{Politics\#Hate}).
+\end{itemize}
+\end{itemize}
+
+To resolve this, we added two information fields for labels marked as hate or offensive.
+\begin{enumerate}[leftmargin=*]
+\item Implied Statement: A short paraphrase that reveals the speaker's actual intent (For
+example: \foreignlanguage{vietnamese}{\textit{``người chơi này rất tệ''}}, \foreignlanguage{vietnamese}{\textit{``nhóm người này phản động''}}).
+\item Rationale: a logical explanation of why the comment is hateful based on text evidence.
+\end{enumerate}
+The next section explains the process for creating this information, which is the core of the
+research methodology.
+
+\section{Methodology}
+We will use a pipeline that uses commercial LLMs to generate data and open-source LLMs for
+training and deployment under the HARE framework.
+
+\subsection{Designing prompts and generating reasoning data.}
+Creating high-quality rationales and implied statements for thousands of comments is a
+massive undertaking—doing it all by hand is simply too expensive and time-consuming to be
+practical. To solve this, we used Gemini 2.0 Flash \citep{google2025gemini2flash} to act as our automated annotator. We
+did not just use the model out of the box; we developed a rigorous Prompt Engineering
+workflow to ensure the quality of the data. By iterating through three distinct versions of our
+instructions, we were able to fine-tune the model's output until it reached the level of detail
+and accuracy required for our framework.
+
+\subsubsection{Phase 1: Prompt base}
+\begin{itemize}[leftmargin=*]
+\item Design: The simple structure includes a Role, a Task, and an Input/Output format. The
+model is required to ``summarize the main idea'' and ``explain why.''
+\item Result: The results of this phase of testing did not meet the expected requirements.
+\begin{itemize}[leftmargin=*]
+\item Implied Statement: The model often just paraphrases the original sentence
+without revealing the hidden meaning.
+\item Rationale: The explanations are too long and unfocused, not centered on the
+hate-related keywords. The output format is inconsistent, making automated
+processing difficult. The ability to distinguish between Hate and Offensive content
+is still limited.
+\end{itemize}
+\end{itemize}
+
+\subsubsection{Phase 2: Prompt updated}
+\begin{itemize}[leftmargin=*]
+\item Improvement: Add constraints and few-shot examples. Require the model to take the
+role of a ``psychologist'' to analyze the ``hidden meaning.''
+\item New issue: Domain Drift. Taking the psychologist role causes the model to analyze too
+deeply from philosophical and behavioral psychology perspectives, leading to
+mislabeling (false positives) for sentences that only express anger (Angry) but are not
+hate speech. In addition, the model uses too many tokens for unnecessary grammatical
+analysis.
+\end{itemize}
+
+\subsubsection{Phase 3: Final prompt}
+This is the officially used version, integrating the HARE framework with a strict four-step
+reasoning structure:
+\begin{enumerate}[leftmargin=*]
+\item Role \& Objective: Clearly define the task as hate speech detection.
+\item Definitions: Provide precise definitions of Hate / Offensive / Clean / Normal based on
+the ViTHSD standard.
+\item Explicit Constraints: Enforce length limits (Implied statement: 3–8 words) and prohibit
+hallucination.
+\item Reasoning Framework (Logic Flow): require the model to strictly follow the flow:
+Target \textrightarrow\ Implied \textrightarrow\ Evidence \textrightarrow\ Verdict.
+\begin{itemize}[leftmargin=*]
+\item Target: Identify the target.
+\item Implied: Describe the hidden meaning or bias.
+\item Evidence: Extract words or phrases with insulting or degrading meaning.
+\item Verdict: Decide the label based on the evidence.
+\end{itemize}
+\item Output Format: Strict JSON formatting to ensure technical consistency and ease of parsing.
+\end{enumerate}
+
+\subsection{Building rationale dataset}
+Data generated by the LLM cannot be guaranteed to be 100\% accurate. To remove noise, we
+apply a two-step filtering process:
+\begin{enumerate}[leftmargin=*]
+\item Manual Verification: A random subset is reviewed by humans (5 team members) to
+evaluate the quality of the Implied Statement. This helps to fine-tune the prompt one
+last time.
+\item Rationale Consistency Check: This is the most critical step for automated data cleaning.
+\begin{itemize}[leftmargin=*]
+    \item Input: Feed the Original Content + Generated Rationale back into the Gemini Flash model.
+    \item Task: Verify if the rationale logically supports the ground truth label.
+    \item Logic:
+\begin{itemize}[leftmargin=*]
+\item If Predicted Label == Ground Truth Label \textrightarrow\ Keep the
+Rationale. This shows that the rationale is logical and leads to the correct
+conclusion.
+\item If Predicted Label $\ne$ Ground Truth Label \textrightarrow\ Discard the Rationale. This
+rationale may be off-topic or contain flawed reasoning.
+\end{itemize}
+\item Result: From thousands of generated rationales, we filtered a high-quality
+dataset (Rationale Dataset) consisting of 1,221 sample pairs for training purposes.
+\end{itemize}
+\end{enumerate}
+
+\subsection{Model and Two-Stage training strategy}
+We selected Qwen2.5-3B-Instruct as our backbone model. As a 3-billion-parameter,
+decoder-only model, it strikes a good balance between efficiency and performance. It is
+lightweight enough to be deployed on mid-range GPUs (such as the NVIDIA T4 in Kaggle or
+Colab environments), yet it consistently outperforms its peers in understanding the
+Vietnamese language and following complex instructions.
+
+To ensure the model could handle both classification and reasoning effectively, we
+implemented a Two-Stage Training strategy:
+
+\textbf{Stage 1: Classifier Training}
+\begin{itemize}[leftmargin=*]
+\item Objective: Train the model to distinguish Target and Level classes based on the original
+text.
+\item Data: The full ViTHSD Train set (7,000 samples). Due to data imbalance, we applied
+oversampling (+540 samples) for minority classes (Politics, Religion) to reduce model
+bias.
+\item Technique: Use QLoRA (Quantized Low-Rank Adaptation) \citep{dettmers2023qlora} in 4-bit. QLoRA allows
+fine-tuning a large model without updating all parameters, saving GPU memory while
+maintaining performance.
+\item Hyperparameters: 2 epochs, Batch size 4, Learning rate 2e-4.
+\end{itemize}
+
+\textbf{Stage 2: Semantic Alignment}
+\begin{itemize}[leftmargin=*]
+\item Objective: Teach the model to understand the relationship between the original text
+and its hidden meaning (Implied statements).
+\item Data: Rationale Dataset (1,221 Content–Implied pairs).
+\item Technique: Further fine-tune the model (checkpoint from Stage 1) using the rationale
+data. This process adjusts the embedding space, bringing implied sentences closer to
+their true meaning. For example, the model learns that in a gaming context, ``99\%
+power'' $\approx$ ``weak/failed.''
+\item Impact: This is the breakthrough step that allows the model to move beyond rote
+keyword learning and toward deep semantic understanding.
+\end{itemize}
+
+\section{Experiments and results}
+
+\subsection{Experimental Setup}
+To evaluate the effectiveness of the proposed method, we compared it with the strongest
+baseline models currently available in Vietnamese NLP and generative AI:
+\begin{enumerate}[leftmargin=*]
+\item PhoBERT-base \citep{nguyen2020phobert}: State-of-the-art encoder-only model for Vietnamese. This represents
+the traditional fine-tuning approach.
+\item Flan-T5-base \citep{chung2022scaling}: Encoder–Decoder model specialized in instruction tuning.
+\item Qwen2.5-3B (Vanilla) \citep{Yang2025Qwen25}: Qwen model with standard fine-tuning only (Stage 1), without
+any Rationale data.
+\item Qwen2.5-3B + Rationales: Proposed model with the two-stage process.
+\end{enumerate}
+The main metrics used are F1-Score Micro (overall evaluation) and F1-Score Macro (fair
+evaluation across classes), along with Precision and Recall.
+
+\subsection{Quantitative Results and Comparative Analysis}
+Based on the experimental results, we obtained the following metrics on the Test set:
+
+\begin{table}[ht]
+\centering
+\caption{Overall performance comparison of the models (Multi-label)}
+\label{tab:overall_perf_expanded}
+\setlength{\tabcolsep}{2pt} % Thu hẹp khoảng cách cột tối đa
+\scriptsize % Sử dụng font chữ nhỏ để chứa được nhiều dữ liệu hơn
+\begin{tabularx}{\columnwidth}{lXXXX}
+\toprule
+\textbf{Metrics} & \textbf{Qwen (Rat)} & \textbf{Qwen (Van)} & \textbf{PhoBERT} & \textbf{Flan-T5} \\
+\midrule
+F1 Samples      & \textbf{0.6345} & 0.6332          & 0.5801 & 0.5074 \\
+F1 Micro        & \textbf{0.6026} & 0.5900          & 0.5412 & 0.4684 \\
+F1 Macro        & 0.3035          & \textbf{0.3310} & 0.2586 & 0.1311 \\
+\midrule
+Prec. Samples   & \textbf{0.6515} & 0.6469          & 0.5791 & 0.5033 \\
+Prec. Micro     & \textbf{0.6347} & \textit{0.6100} & 0.5620 & 0.4810 \\
+Prec. Macro     & \textbf{0.4067} & \textit{0.3800} & 0.3200 & 0.1800 \\
+\midrule
+Rec. Samples    & 0.6344          & \textbf{0.6372} & 0.5993 & 0.5210 \\
+Rec. Micro      & \textbf{0.5735} & \textit{0.5600} & 0.5310 & 0.4520 \\
+Rec. Macro      & \textbf{0.2842} & \textit{0.2700} & 0.2450 & 0.1100 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Analysis:}
+\begin{itemize}[leftmargin=*]
+\item Superior Micro F1: The proposed model achieves 60.26\%, the highest among all. It
+surpasses PhoBERT by +6.14\% and Flan-T5 by +13.42\%, confirming the advantage of a
+modern decoder-only architecture combined with rationale data over older
+architectures.
+\item Impressive Precision: With Micro Precision of 63.47\%, the model significantly
+reduces false positives. In content moderation, high precision is crucial to avoid wrongly
+blocking harmless user comments, ensuring a better user experience.
+\item Impact of Rationales: Compared to Qwen Vanilla, the rationale-enhanced version
+improves Micro F1 (+1.26\%)and Precision (+2.47\%). While the overall increase is
+modest, the real improvement lies in the hard-to-classify label classes (analyzed in
+Section 5.3).
+\end{itemize}
+
+\begin{table}[ht]
+\centering
+\caption{Detailed F1-Score analysis by Label}
+\label{tab:label_f1}
+\setlength{\tabcolsep}{2pt}
+\scriptsize
+\begin{tabularx}{\columnwidth}{>{\raggedright\arraybackslash}p{1.8cm}XXXX} % Ép cột Label rộng 1.8cm và xuống dòng
+\toprule
+\textbf{Label} & \textbf{Qwen (Rat)} & \textbf{Qwen (Van)} & \textbf{Pho-BERT} & \textbf{Flan-T5} \\
+\midrule
+Normal & 0.7984 & 0.7970 & 0.7531 & 0.6732 \\
+Indivi. \#Hate & 0.6166 & 0.6190 & 0.5365 & 0.3583 \\
+Groups \#Hate & 0.5344 & 0.4583 & 0.4603 & 0.3493 \\
+Politics \#Hate & 0.5400 & 0.3659 & 0.2913 & 0.0299 \\
+Race \#Hate & 0.2817 & 0.3288 & 0.2857 & 0.0312 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{In-depth Discussion of Findings}
+\begin{enumerate}[leftmargin=*]
+\item Breakthrough in Detecting Political Hate (Politics):
+This is the most remarkable result of the study. The Politics\#Hate label is one of the
+hardest due to its high use of metaphors, political slang, and reliance on background
+knowledge.
+\begin{itemize}[leftmargin=*]
+\item PhoBERT: 29.13\% F1
+\item Qwen Vanilla: 36.59\% F1
+\item Qwen + Rationales: 54.00\% F1
+\end{itemize}
+The F1-score improvement of +17.41\% over Qwen Vanilla and +24.87\% over PhoBERT
+demonstrates that incorporating Implied Statements helped the model understand the
+semantics of political comments. The model learned to associate political slang (e.g., \foreignlanguage{vietnamese}{\textit{``ba que,'' ``bò đỏ''}}) with hate meaning instead of ignoring them.
+
+\item Improvement on Groups:
+Similarly, for the Groups\#Hate label, the proposed model achieves 53.44\%, outperforming
+all baselines. This demonstrates better generalization for targets that are collective groups.
+
+\item Failure on the Race Label:
+In contrast to the positive results above, performance on Race\#Hate is very low (28.17\%),
+even below Qwen Vanilla.
+\begin{itemize}[leftmargin=*]
+\item Reason: The issue lies in the data. The Race group has only about 500 training samples.
+The generated rationales for this group are also few and may contain noise. With such
+data sparsity, additional fine-tuning with rationales can lead to overfitting or confuse
+the model with complex reasoning that lacks enough examples for verification.
+\item Key lesson: Chain-of-Thought (CoT) reasoning cannot fully replace sufficient original
+data.
+\end{itemize}
+
+\item Why PhoBERT Underperforms:
+PhoBERT was pre-trained on Wikipedia data (formal text). It excels at standard syntax but
+lacks the flexibility to understand online language. In contrast, Qwen2.5 is a generative
+model designed to understand and produce natural language, giving it a natural advantage in
+capturing semantic nuances and pragmatics of modern Vietnamese.
+\end{enumerate}
+
+\section{Practical Application: Real-Time Streaming System}
+To demonstrate the model's feasibility in a real-world environment, the research team
+developed a demo web application that analyzes comments from YouTube. The application
+focuses on simplicity and fast processing speed
+
+\subsection{Tech Stack}
+The system is developed based on a modern Client-Server model, ensuring separation
+between the interface and processing logic:
+\begin{itemize}[leftmargin=*]
+\item Frontend (Interface): Built with React combined with Vite to optimize page load
+performance. The interface is designed to be intuitive, allowing users to input a video
+link and view analysis results in real-time.
+\item Backend (Processing): Built on the FastAPI platform (Python). The backend acts as a
+bridge, performing two main tasks: (1) Calling the YouTube Data API v3 to fetch data,
+and (2) Running the trained Qwen2.5-3B model to classify comments (Inference).
+\item Data Source: Integrated with YouTube Data API v3 to collect public comment data
+from designated videos.
+\end{itemize}
+
+\subsection{Label Mapping Strategy}
+The original labeling system of ViTHSD (\#[Level]) is academically focused and might confuse
+general users. Therefore, in the demo version, we implement a mapping strategy to group the
+labels into 3 simpler, more understandable categories:
+\begin{itemize}[leftmargin=*]
+\item Neutral: Includes comments labeled as Normal and Clean in the original system.
+These are safe content that does not require moderation.
+\item Offensive: Corresponds to the Offensive level. These are rude, uncomfortable
+comments, but they do not necessarily violate community standards severely.
+\item Hate: Corresponds to the Hate level. This is the most dangerous group, containing
+inflammatory, hostile language that needs a red-flag warning system.
+\end{itemize}
+
+\textbf{Processing Workflow:}
+Input URL \textrightarrow\ Crawl Comments \textrightarrow\ Qwen2.5 Inference \textrightarrow\ Map Labels \textrightarrow\ Display Result.
+
+\subsection{Keyword Highlighting Feature (Rule-based)}
+To help users quickly understand why a comment is flagged as Hate or Offensive, the demo
+integrates a highlighting feature that operates on a rule-based mechanism:
+\begin{itemize}[leftmargin=*]
+\item Principle: The system maintains a ``blacklist dictionary'' containing hate keywords,
+profanity, and commonly used slang, directly extracted from the frequency of
+occurrences in the ViTHSD training dataset.
+\item Functionality: When displaying comments on the React interface, the system
+automatically scans and highlights words that match the dictionary entries.
+\item Value: This helps moderators quickly identify ``dangerous'' areas in the text without
+having to read every single word. It serves as a visual aid alongside the AI’s predicted
+labels.
+\end{itemize}
+
+\section{Conclusion, Limitations, and Future Directions}
+The study has demonstrated the effectiveness of combining Qwen2.5 with the HARE
+framework for the ViTHSD problem. However, through the process of building the demo and
+conducting experiments, we identified several important limitations that need to be
+addressed:
+
+\subsection{Limitations of the Rule-based Highlighting Mechanism}
+Although the keyword highlighting feature in the demo helps with quick visualization, it
+exposes inherent weaknesses of the rule-based method:
+\begin{itemize}[leftmargin=*]
+\item Rigidity and Lack of Context: This mechanism only detects explicit keywords. It is
+entirely ineffective against implicit hate speech that doesn’t use offensive language
+(e.g., \foreignlanguage{vietnamese}{\textit{``Khôn như bạn quê tôi xích đầy''}}).
+\item False Positives: It can incorrectly highlight harmless words if they are in the blacklist
+but are used in a neutral context, leading to unnecessary noise for the user.
+\end{itemize}
+
+\subsection{Future Directions: Attention-based Highlighting}
+To address the above limitation, the next research direction will focus on developing an
+Attention-based Highlighting mechanism:
+\begin{itemize}[leftmargin=*]
+\item Instead of using a static dictionary, the system will extract Attention Weights from the
+Self-Attention layers of the Qwen2.5 model.
+\item This allows the system to accurately highlight the words/phrases that the model is
+actually ``focusing on'' to make its decision, including metaphorical or sarcastic
+expressions, fully synchronizing the AI's reasoning with the interface display.
+\end{itemize}
+
+\subsection{Other Expansion Directions}
+\begin{itemize}[leftmargin=*]
+\item Addressing Data Imbalance: Collect more data or use Generative Data
+Augmentation techniques for underrepresented groups, such as Race and Religion.
+\item Multimodal Expansion: Extend the system to handle both images (e.g., memes) and
+videos, creating a more comprehensive content moderation solution.
+\end{itemize}
+\bibliography{custom} 
+\bibliographystyle{acl_natbib}
+\end{document}
