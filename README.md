@@ -14,72 +14,84 @@
   IE403.Q11 Course Project - Social Media Mining - UIT, VNU-HCM
 </p>
 
-This repository presents HARE, an explainable framework for Vietnamese hate speech detection. The system integrates multi-label classification, rationale extraction, and implied statement inference to support transparent moderation decisions on social media text.
-
+HARE is an explainable hate speech analysis framework for Vietnamese social media text. The system combines multi-label classification with rationale extraction and implied-statement inference, then maps evidence spans back to source text for transparent review.
 
 ## Table of Contents
 
 - [Abstract](#abstract)
 - [Research Objectives](#research-objectives)
 - [Core Contributions](#core-contributions)
-- [Repository Structure](#repository-structure)
-- [Experimental Results](#experimental-results)
+- [Updated Repository Structure](#updated-repository-structure)
+- [Experimental Summary](#experimental-summary)
 - [Methodology](#methodology)
 - [Setup and Reproducibility](#setup-and-reproducibility)
 - [Backend Preview API](#backend-preview-api)
-- [Demo Resources](#demo-resources)
+- [Project Artifacts](#project-artifacts)
 - [Team](#team)
 - [Citation](#citation)
-- [License](#license)
 
 ---
+
 ## Abstract
 
-HARE is developed within the IE403.Q11 course to address two requirements in hate speech analysis: predictive performance and interpretability. Beyond assigning labels, the framework identifies textual evidence (rationales) and transforms implicit hostile expressions into explicit implied statements. This improves traceability of model decisions and supports downstream moderation workflows.
+This repository presents the implementation of HARE, developed for the IE403.Q11 course project. The framework addresses two central requirements in hate speech detection: classification accuracy and interpretability. In addition to predicting labels, HARE extracts rationales and inferred implied statements, supporting traceable and explainable model decisions in Vietnamese social media contexts.
 
 > [!IMPORTANT]
-> This repository is organized for academic reproducibility and source inspection.
-> The complete runnable demo (including large model artifacts) is distributed externally due to storage constraints.
+> The repository is structured for academic reproducibility and code inspection.
+> Full runnable demo assets (including large model files) are distributed externally due to storage constraints.
 
 ---
+
 ## Research Objectives
 
-- Build a Vietnamese hate speech detection pipeline with explainable outputs.
-- Evaluate whether rationale-augmented supervision improves difficult label groups.
-- Provide a practical full-stack prototype for interactive analysis.
+- Design a Vietnamese hate speech detection pipeline with explicit explainability outputs.
+- Assess whether rationale-aware supervision improves challenging and implicit hate categories.
+- Provide an application-ready prototype for real-time moderation analysis.
 
 ---
+
 ## Core Contributions
 
-- A two-stage fine-tuning strategy on Qwen2.5-3B with QLoRA.
-- Multi-label classification across five targets: individuals, groups, religion, race/ethnicity, and politics.
-- Rationale-aligned highlighting that maps model evidence back to original text spans.
-- A FastAPI-based backend preview with single-text, batch, and YouTube-comment analysis routes.
+- Two-stage semantic alignment training on Qwen2.5-3B (QLoRA-based).
+- Multi-label categorization across five targets: individuals, groups, religion, race/ethnicity, and politics.
+- Rationale-to-span highlighting for interpretable evidence localization.
+- FastAPI backend preview supporting single inference, batch inference, and YouTube comment analysis.
 
 ---
-## Repository Structure
+
+## Updated Repository Structure
 
 ```text
 .
 |-- app-preview/
-|   |-- backend-logic/        # FastAPI preview code (API, model wrapper, highlighting, YouTube integration)
-|   `-- frontend-snippet/     # Frontend snippet (index template)
+|   |-- backend-logic/          # FastAPI logic: API routes, model wrapper, highlighting, YouTube integration
+|   |-- frontend-snippet/       # Frontend entry/template snippet
+|   `-- sample-outputs/         # Sample inference outputs and model metadata
 |-- dataset/
-|   |-- raw/                  # Original ViTHSD files
-|   `-- processed/            # Processed rationale dataset
+|   |-- raw/                    # Original ViTHSD source files
+|   `-- processed/              # Processed training data (dataset_rationale.json)
+|-- docs/
+|   |-- IE403.Q11-Nhom2_report.pdf
+|   `-- IE403.Q11-Nhom2_slide.pdf
+|-- results/
+|   |-- figures/
+|   |   `-- live-demo.gif
+|   `-- videos/
+|       `-- demo_video.mp4
 |-- research/
-|   |-- notebooks/            # Baseline and fine-tuning experiments
-|   |-- prompts/              # Prompt evolution (v1 -> v3)
-|   `-- src/                  # Data preparation, model config, evaluation
-|-- MAPR2026/                 # LaTeX sources for paper/report
+|   |-- notebooks/              # Baseline, prompt, and fine-tuning notebooks
+|   |-- prompts/                # Prompt versions (v1, v2, v3)
+|   `-- src/                    # Data prep, configuration, modeling, evaluation
+|-- MAPR2026/                   # LaTeX manuscript sources and submission materials
 |-- requirements.txt
 `-- README.md
 ```
 
 ---
-## Experimental Results
 
-The proposed HARE configuration provides the best overall micro F1 on ViTHSD test data among compared baselines.
+## Experimental Summary
+
+HARE achieves the highest overall micro F1 on the ViTHSD test split among evaluated baselines.
 
 | Model | Precision (Micro) | Recall (Micro) | F1-score (Micro) |
 |---|---:|---:|---:|
@@ -88,23 +100,25 @@ The proposed HARE configuration provides the best overall micro F1 on ViTHSD tes
 | Qwen2.5 (Vanilla, Stage 1) | 0.6100 | 0.5600 | 0.5900 |
 | **HARE (Qwen2.5 + Rationales, Stage 1 + 2)** | **0.6347** | **0.5735** | **0.6026** |
 
-The most notable gains are observed in politically sensitive and context-dependent cases, where rationale-guided training improves interpretation of implicit hostility.
+The strongest gains are observed in context-heavy categories, especially political hate speech, where rationale-guided learning improves implicit intent recognition.
 
 ---
+
 ## Methodology
 
 ### Two-stage semantic alignment
 
-1. Stage 1: Fine-tune Qwen2.5 on ViTHSD labels to establish class boundaries.
-2. Stage 2: Continue training with rationale and implied-statement supervision to align latent reasoning with final labels.
+1. Stage 1: Fine-tune Qwen2.5 on label-only supervision to establish class boundaries.
+2. Stage 2: Continue training with rationale and implied-statement supervision to align semantic reasoning with final labels.
 
-### Explainability layer
+### Explainability pipeline
 
-- Rationale extraction identifies toxic evidence in free-form text.
-- Span mapping links rationale evidence to character-level highlights in the original sentence.
-- Implied statement generation makes indirect hostility more explicit for human review.
+- Rationale extraction identifies evidence tokens/spans for moderation decisions.
+- Unicode-aware span mapping projects rationale evidence back to original user text.
+- Implied-statement generation helps interpret indirect or metaphorical hostility.
 
 ---
+
 ## Setup and Reproducibility
 
 ### 1. Environment setup
@@ -126,13 +140,14 @@ jupyter notebook
 ```
 
 > [!NOTE]
-> Notebook paths were initially configured for Kaggle environments and may require local path updates.
-> If needed, re-point dataset references to `dataset/processed/dataset_rationale.json`.
+> Several notebooks were originally authored for Kaggle paths.
+> When running locally, update file paths to the repository layout (for example `dataset/processed/dataset_rationale.json`).
 
 ---
+
 ## Backend Preview API
 
-The `app-preview/backend-logic` module contains the main backend logic used by the complete demo package.
+The backend preview module is located in `app-preview/backend-logic`.
 
 Available routes:
 - `GET /health`
@@ -141,16 +156,21 @@ Available routes:
 - `GET /v1/youtube/comments`
 
 > [!CAUTION]
-> The preview backend expects local assets (for example `data/hate_keywords.json`, adapter checkpoints, and tokenizer files).
-> End-to-end execution requires the external demo package or equivalent local model assets.
+> End-to-end backend inference requires local model assets (keywords file, adapter checkpoints, tokenizer files).
+> These files are part of the external demo package, not fully embedded in this repository.
 
 ---
-## Demo Resources
 
-- Demo animation: `live-demo.gif`
+## Project Artifacts
+
+- Demo GIF: `results/figures/live-demo.gif`
+- Demo video: `results/videos/demo_video.mp4`
+- Sample outputs: `app-preview/sample-outputs/results_datasetA_qwen_stage2.json`
+- Full demo package (external storage):
+  - https://nklod-my.sharepoint.com/:f:/g/personal/phatxinhchao_nklod_onmicrosoft_com/IgAYGfiHj2ZsTpr2aebNbSfrAVG0YJ0LkziTmToc1uIn1oY?e=nnp26c
 
 <p align="center">
-  <img src="live-demo.gif" alt="Hate Speech Detection and Highlighting for Vietnamese with Rationale Extraction Demo" width="900">
+  <img src="results/figures/live-demo.gif" alt="HARE live demo" width="900" />
 </p>
 
 - Project video: `demo_video.mp4`
@@ -158,6 +178,7 @@ Available routes:
   - https://nklod-my.sharepoint.com/:f:/g/personal/phatxinhchao_nklod_onmicrosoft_com/IgAYGfiHj2ZsTpr2aebNbSfrAVG0YJ0LkziTmToc1uIn1oY?e=nnp26c
 
 ---
+
 ## Team
 
 | No. | Student ID | Full Name | Role | GitHub |
@@ -169,6 +190,7 @@ Available routes:
 | 5 | 21520255 | Huong Nguyen Le Quynh | Member | [tracycute](https://github.com/tracycute) |
 
 ---
+
 ## Citation
 
 If this repository supports your research or coursework, please cite the project repository and the associated IE403 report/paper artifacts.
