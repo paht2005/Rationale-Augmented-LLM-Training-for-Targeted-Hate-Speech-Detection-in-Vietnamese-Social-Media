@@ -1,14 +1,14 @@
 """
 Models Module - ViTHSD Multi-Label Classification
 
-Hỗ trợ 2 Datasets:
-- Dataset A: ViTHSD gốc (chỉ có content + labels)
+Supports 2 Datasets:
+- Dataset A: Original ViTHSD (only content + labels)
 - Dataset B: ViTHSD + Rationale + Implied Statement
 
 3 Models:
-1. PhoBERT: Knowledge Distillation (Teacher có rationale, Student không có)
-2. FlanT5: Chain-of-Thought (generate rationale → implied → labels)
-3. Qwen: Chain-of-Thought với QLoRA 4-bit
+1. PhoBERT: Knowledge Distillation (Teacher has rationale, Student does not)
+2. FlanT5: Chain-of-Thought (generate rationale -> implied -> labels)
+3. Qwen: Chain-of-Thought with QLoRA 4-bit
 
 Author: ViTHSD Team
 """
@@ -141,7 +141,7 @@ def oversample_minority_labels(
 # =============================================================================
 
 class ModelWrapper(ABC):
-    """Base class cho các models"""
+    """Base class for models"""
     
     def __init__(self, name: str):
         self.name = name
@@ -167,12 +167,12 @@ class ModelWrapper(ABC):
 
 class PhoBERTWrapper(ModelWrapper):
     """
-    PhoBERT Multi-Label Classification với Knowledge Distillation
+    PhoBERT Multi-Label Classification with Knowledge Distillation
     
-    Dataset A (no rationale): Train trực tiếp
+    Dataset A (no rationale): Train directly
     Dataset B (with rationale): 
-        - Teacher model: Train với rationale-augmented input
-        - Student model: Distill từ Teacher, inference không cần rationale
+        - Teacher model: Train with rationale-augmented input
+        - Student model: Distill from Teacher, inference does not need rationale
     """
     
     def __init__(
@@ -219,7 +219,7 @@ class PhoBERTWrapper(ModelWrapper):
         self.teacher_model = None
     
     def _augment_with_rationale(self, content: str, rationale: List[str], implied: str = "") -> str:
-        """Augment content với rationale và implied statement cho Teacher"""
+        """Augment content with rationale and implied statement for Teacher"""
         parts = [content]
         if implied:
             parts.append(f"[IMPLIED] {implied}")
@@ -233,7 +233,7 @@ class PhoBERTWrapper(ModelWrapper):
         y_train: List[List[str]],
         teacher_logits: np.ndarray = None
     ):
-        """Train một model (Teacher hoặc Student)"""
+        """Train a single model (Teacher or Student)"""
         import torch
         import torch.nn.functional as F
         from torch.utils.data import DataLoader, TensorDataset
@@ -269,7 +269,7 @@ class PhoBERTWrapper(ModelWrapper):
         try:
             max_pos = self.model.config.max_position_embeddings
             safe_max_length = min(self.max_length, max_pos)
-        except:
+        except Exception:
             safe_max_length = self.max_length
         
         encodings = self.tokenizer(
@@ -409,7 +409,7 @@ class PhoBERTWrapper(ModelWrapper):
                 rationale=rationale, implied=implied
             )
             
-            # Step 2: Train Teacher với augmented input
+            # Step 2: Train Teacher with augmented input
             print(f"\n  [Step 1/3] Training Teacher model with rationale...")
             X_augmented = [
                 self._augment_with_rationale(x, r, i) 
@@ -425,7 +425,7 @@ class PhoBERTWrapper(ModelWrapper):
             self.teacher_model = self.model
             self.model = None
             
-            # Step 4: Train Student với plain input + Teacher soft labels
+            # Step 4: Train Student with plain input + Teacher soft labels
             print(f"\n  [Step 3/3] Training Student model with KD...")
             self._train_single_model(X_train, y_train, teacher_logits=teacher_logits)
             
@@ -442,7 +442,7 @@ class PhoBERTWrapper(ModelWrapper):
             self._train_single_model(X_train, y_train)
         
         self.is_trained = True
-        print(f"  ✓ Training completed")
+        print(f"  Training completed")
     
     def _extract_hate_words_attention(
         self, 
@@ -452,8 +452,8 @@ class PhoBERTWrapper(ModelWrapper):
         top_k: int = 5
     ) -> List[str]:
         """
-        Trích xuất từ gây thù ghét bằng attention weights
-        Sử dụng attention scores từ layer cuối để xác định từ quan trọng
+        Extract hate words using attention weights.
+        Uses attention scores from the last layer to identify important tokens.
         """
         import torch
         
@@ -465,7 +465,7 @@ class PhoBERTWrapper(ModelWrapper):
                 output_attentions=True
             )
             
-            # Lấy attention từ layer cuối, head cuối
+            # Get attention from the last layer, last head
             # Shape: (batch, num_heads, seq_len, seq_len)
             attentions = outputs.attentions[-1]  # Last layer
             
@@ -473,15 +473,15 @@ class PhoBERTWrapper(ModelWrapper):
             # Shape: (batch, seq_len, seq_len)
             avg_attention = attentions.mean(dim=1)
             
-            # Lấy attention từ CLS token (index 0) đến các token khác
+            # Get attention from CLS token (index 0) to other tokens
             # Shape: (batch, seq_len)
             cls_attention = avg_attention[0, 0, :]
             
             # Mask padding tokens
             cls_attention = cls_attention * attention_mask[0].float()
             
-            # Get top-k token indices (skip CLS và SEP tokens)
-            # CLS = index 0, SEP thường ở cuối
+            # Get top-k token indices (skip CLS and SEP tokens)
+            # CLS = index 0, SEP is usually at the end
             cls_attention[0] = 0  # Skip CLS
             
             # Find SEP token and zero it
@@ -500,7 +500,7 @@ class PhoBERTWrapper(ModelWrapper):
             for idx in top_indices:
                 if idx < len(tokens):
                     token = tokens[idx]
-                    # Skip special tokens và padding
+                    # Skip special tokens and padding
                     if token in ['<s>', '</s>', '<pad>', '[CLS]', '[SEP]', '[PAD]']:
                         continue
                     # Handle subword tokens (PhoBERT uses @@ or ▁)
@@ -512,7 +512,7 @@ class PhoBERTWrapper(ModelWrapper):
     
     def _find_original_words(self, text: str, highlighted_tokens: List[str]) -> List[str]:
         """
-        Tìm từ nguyên văn trong câu gốc từ các tokens được highlight
+        Find original words in the source text from highlighted tokens
         """
         import re
         
@@ -522,8 +522,8 @@ class PhoBERTWrapper(ModelWrapper):
         for token in highlighted_tokens:
             token_lower = token.lower()
             
-            # Tìm từ chứa token trong text gốc
-            # Pattern: word boundary hoặc token xuất hiện trong text
+            # Find the word containing the token in the original text
+            # Pattern: word boundary or token appears in text
             for word in text.split():
                 word_clean = re.sub(r'[^\w]', '', word)
                 if token_lower in word_clean.lower():
@@ -552,13 +552,13 @@ class PhoBERTWrapper(ModelWrapper):
         from tqdm import tqdm
         
         if not self.is_trained:
-            raise ValueError("Model chưa được train")
+            raise ValueError("Model has not been trained")
         
         # Cap max_length
         try:
             max_pos = self.model.config.max_position_embeddings
             safe_max_length = min(self.max_length, max_pos)
-        except:
+        except Exception:
             safe_max_length = self.max_length
         
         encodings = self.tokenizer(
@@ -646,7 +646,7 @@ class PhoBERTWrapper(ModelWrapper):
 
 class FlanT5Wrapper(ModelWrapper):
     """
-    FlanT5 Multi-Label Classification với Chain-of-Thought
+    FlanT5 Multi-Label Classification with Chain-of-Thought
     
     Dataset A: Generate labels only
     Dataset B: Generate implied_statement → rationale → labels (CoT)
@@ -688,7 +688,7 @@ class FlanT5Wrapper(ModelWrapper):
         self.tokenizer = None
     
     def _format_input_standard(self, text: str) -> str:
-        """Format input cho Dataset A - SIMPLIFIED prompt (like experiment version)"""
+        """Format input for Dataset A - SIMPLIFIED prompt (like experiment version)"""
         labels_str = ", ".join(self.labels)
         return f"""You are a Vietnamese hate speech classification system. Classify the text into one or more labels.
 Valid labels: {labels_str}
@@ -697,7 +697,7 @@ Return only the label names, separated by commas.
 Text to classify: {text}"""
     
     def _format_input_cot(self, text: str) -> str:
-        """Format input cho Dataset B (Chain-of-Thought)"""
+        """Format input for Dataset B (Chain-of-Thought)"""
         labels_str = ", ".join(self.labels)
         return f"""Analyze the Vietnamese text for hate speech using step-by-step reasoning.
 
@@ -714,12 +714,12 @@ Text: {text}
 Analysis:"""
     
     def _format_output_standard(self, labels_list: List[str]) -> str:
-        """Format output cho Dataset A"""
+        """Format output for Dataset A"""
         resolved = resolve_labels_list(labels_list)
         return ", ".join(sorted(resolved))
     
     def _format_output_cot(self, labels_list: List[str], rationale: List[str], implied: str) -> str:
-        """Format output cho Dataset B (Chain-of-Thought)"""
+        """Format output for Dataset B (Chain-of-Thought)"""
         resolved = resolve_labels_list(labels_list)
         
         implied_text = implied if implied else "None"
@@ -731,7 +731,7 @@ Rationale: {rationale_text}
 Labels: {labels_text}"""
     
     def _parse_output_standard(self, output: str) -> List[str]:
-        """Parse output từ Dataset A"""
+        """Parse output for Dataset A"""
         import re
         
         output = output.lower().strip()
@@ -753,7 +753,7 @@ Labels: {labels_text}"""
         return resolve_labels_list(labels)
     
     def _parse_output_cot(self, output: str) -> Tuple[str, List[str], List[str]]:
-        """Parse output từ Dataset B (Chain-of-Thought)"""
+        """Parse output for Dataset B (Chain-of-Thought)"""
         import re
         
         # Extract implied statement
@@ -907,10 +907,10 @@ Labels: {labels_text}"""
             print(f"  Epoch {epoch+1}: avg_loss = {avg_loss:.4f}")
         
         self.is_trained = True
-        print(f"  ✓ Training completed")
+        print(f"  Training completed")
     
     def _format_input_inference(self, text: str) -> str:
-        """Format input cho INFERENCE - SIMPLIFIED prompt (like experiment version)"""
+        """Format input for INFERENCE - SIMPLIFIED prompt (like experiment version)"""
         labels_str = ", ".join(self.labels)
         return f"""You are a Vietnamese hate speech classification system. Classify the text into one or more labels.
 Valid labels: {labels_str}
@@ -919,7 +919,7 @@ Return only the label names, separated by commas.
 Text to classify: {text}"""
     
     def _format_input_inference_with_hate_words(self, text: str) -> str:
-        """Format input cho INFERENCE với yêu cầu trích xuất từ gây thù ghét"""
+        """Format input for INFERENCE with hate word extraction"""
         labels_str = ", ".join(self.labels)
         return f"""Classify the Vietnamese text into hate speech labels and extract hate words.
 
@@ -942,7 +942,7 @@ Text: {text}
 Output:"""
     
     def _parse_output_with_hate_words(self, output: str) -> Tuple[List[str], List[str]]:
-        """Parse output có chứa hate words"""
+        """Parse output containing hate words"""
         import re
         
         # Extract labels
@@ -993,7 +993,7 @@ Output:"""
         from tqdm import tqdm
         
         if not self.is_trained:
-            raise ValueError("Model chưa được train")
+            raise ValueError("Model has not been trained")
         
         # Choose prompt based on whether we need hate words
         if extract_hate_words:
@@ -1053,7 +1053,7 @@ Output:"""
 
 class QwenWrapper(ModelWrapper):
     """
-    Qwen2.5-3B Multi-Label Classification với QLoRA 4-bit và Chain-of-Thought
+    Qwen2.5-3B Multi-Label Classification with QLoRA 4-bit and Chain-of-Thought
     
     Dataset A: Generate labels only
     Dataset B: Generate implied_statement → rationale → labels (CoT)
@@ -1097,7 +1097,7 @@ class QwenWrapper(ModelWrapper):
         self.tokenizer = None
     
     def _format_input_standard(self, text: str) -> str:
-        """Format input cho Dataset A - SIMPLIFIED prompt (like experiment version)"""
+        """Format input for Dataset A - SIMPLIFIED prompt (like experiment version)"""
         labels_str = ", ".join(self.labels)
         return f"""<|im_start|>system
 You are a Vietnamese hate speech classification system. Classify the text into one or more labels.
@@ -1109,7 +1109,7 @@ Text to classify: {text}<|im_end|>
 """
     
     def _format_input_cot(self, text: str) -> str:
-        """Format input cho Dataset B (Chain-of-Thought) - giống FlanT5 100% nhưng wrap trong chat format"""
+        """Format input for Dataset B (Chain-of-Thought) - same as FlanT5 but wrapped in chat format"""
         labels_str = ", ".join(self.labels)
         return f"""<|im_start|>system
 Analyze the Vietnamese text for hate speech using step-by-step reasoning.
@@ -1127,12 +1127,12 @@ Text: {text}<|im_end|>
 Analysis:"""
     
     def _format_output_standard(self, labels_list: List[str]) -> str:
-        """Format output cho Dataset A"""
+        """Format output for Dataset A"""
         resolved = resolve_labels_list(labels_list)
         return ", ".join(sorted(resolved)) + "<|im_end|>"
     
     def _format_output_cot(self, labels_list: List[str], rationale: List[str], implied: str) -> str:
-        """Format output cho Dataset B - giống FlanT5 100%"""
+        """Format output for Dataset B - same as FlanT5"""
         resolved = resolve_labels_list(labels_list)
         
         implied_text = implied if implied else "None"
@@ -1144,7 +1144,7 @@ Rationale: {rationale_text}
 Labels: {labels_text}<|im_end|>"""
     
     def _parse_output(self, output: str) -> List[str]:
-        """Parse output từ Qwen - IMPROVED to not depend on 'Labels:' prefix"""
+        """Parse output from Qwen - IMPROVED to not depend on 'Labels:' prefix"""
         import re
         
         # Clean output
@@ -1183,7 +1183,7 @@ Labels: {labels_text}<|im_end|>"""
         rationale: List[List[str]] = None,
         implied: List[str] = None
     ):
-        """Train Qwen với QLoRA"""
+        """Train Qwen with QLoRA"""
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
         from peft import LoraConfig, get_peft_model, TaskType, prepare_model_for_kbit_training
@@ -1236,13 +1236,13 @@ Labels: {labels_text}<|im_end|>"""
                 bnb_4bit_use_double_quant=True
             )
         except Exception as e:
-            print(f"⚠️  Warning: BitsAndBytes config failed: {e}")
+            print(f"  Warning: BitsAndBytes config failed: {e}")
             print(f"   Trying to reinstall bitsandbytes...")
             import subprocess
             try:
                 subprocess.run(["pip", "install", "--upgrade", "--force-reinstall", "bitsandbytes"], 
                              check=True, capture_output=True)
-                print(f"   ✅ Reinstalled bitsandbytes, retrying...")
+                print(f"   Reinstalled bitsandbytes, retrying...")
                 bnb_config = BitsAndBytesConfig(
                     load_in_4bit=True,
                     bnb_4bit_quant_type="nf4",
@@ -1250,7 +1250,7 @@ Labels: {labels_text}<|im_end|>"""
                     bnb_4bit_use_double_quant=True
                 )
             except Exception as e2:
-                print(f"   ❌ Failed to fix bitsandbytes: {e2}")
+                print(f"   Failed to fix bitsandbytes: {e2}")
                 raise RuntimeError(
                     "BitsAndBytes not properly installed. Please run: "
                     "pip install --upgrade --force-reinstall bitsandbytes"
@@ -1266,7 +1266,7 @@ Labels: {labels_text}<|im_end|>"""
             )
         except ImportError as e:
             if "bitsandbytes" in str(e):
-                print(f"⚠️  BitsAndBytes version issue: {e}")
+                print(f"  BitsAndBytes version issue: {e}")
                 print(f"   Attempting to upgrade bitsandbytes...")
                 import subprocess
                 try:
@@ -1276,14 +1276,14 @@ Labels: {labels_text}<|im_end|>"""
                         capture_output=True,
                         text=True
                     )
-                    print(f"   ✅ Upgraded bitsandbytes successfully")
-                    print(f"   ⚠️  Please RESTART the kernel and run again")
+                    print(f"   Upgraded bitsandbytes successfully")
+                    print(f"   Please RESTART the kernel and run again")
                     raise RuntimeError(
                         "BitsAndBytes has been upgraded. "
                         "Please RESTART the kernel and run the notebook again."
                     ) from e
                 except subprocess.CalledProcessError as e2:
-                    print(f"   ❌ Failed to upgrade: {e2}")
+                    print(f"   Failed to upgrade: {e2}")
                     raise RuntimeError(
                         "Cannot upgrade bitsandbytes. Please manually run:\n"
                         "  !pip install -U bitsandbytes\n"
@@ -1359,10 +1359,10 @@ Labels: {labels_text}<|im_end|>"""
             print(f"  Epoch {epoch+1}: avg_loss = {avg_loss:.4f}")
         
         self.is_trained = True
-        print(f"  ✓ Training completed")
+        print(f"  Training completed")
     
     def _format_input_inference(self, text: str) -> str:
-        """Format input cho INFERENCE - SIMPLIFIED prompt (like experiment version)"""
+        """Format input for INFERENCE - SIMPLIFIED prompt (like experiment version)"""
         labels_str = ", ".join(self.labels)
         return f"""<|im_start|>system
 You are a Vietnamese hate speech classification system. Classify the text into one or more labels.
@@ -1374,9 +1374,9 @@ Text to classify: {text}<|im_end|>
 """
     
     def _format_input_inference_with_hate_words(self, text: str) -> str:
-        """Format input cho INFERENCE với yêu cầu trích xuất từ gây thù ghét"""
+        """Format input for INFERENCE with hate word extraction"""
         labels_str = ", ".join(self.labels)
-        # Core prompt giống FlanT5 100%, chỉ wrap trong chat format
+        # Core prompt same as FlanT5, only wrapped in chat format
         return f"""<|im_start|>system
 Classify the Vietnamese text into hate speech labels and extract hate words.
 
@@ -1399,7 +1399,7 @@ Text: {text}<|im_end|>
 Output:"""
     
     def _parse_output_with_hate_words(self, output: str) -> Tuple[List[str], List[str]]:
-        """Parse output có chứa hate words"""
+        """Parse output containing hate words"""
         import re
         
         # Split by newline or "Hate Words:"
@@ -1450,7 +1450,7 @@ Output:"""
         from tqdm import tqdm
         
         if not self.is_trained:
-            raise ValueError("Model chưa được train")
+            raise ValueError("Model has not been trained")
         
         self.model.eval()
         predictions_labels = []
@@ -1511,7 +1511,7 @@ def create_model(
     **kwargs
 ) -> ModelWrapper:
     """
-    Factory function để tạo model
+    Factory function to create model
     
     Args:
         model_type: "phobert", "flant5", "qwen"
@@ -1583,24 +1583,24 @@ if __name__ == "__main__":
         "Cá nhân này thấp kém",
     ]
     
-    print("\n📌 Test 1: PhoBERT Dataset A (Standard)")
+    print("\n Test 1: PhoBERT Dataset A (Standard)")
     model_a = create_model("phobert", dataset_type="A", num_epochs=1)
     print(f"   Model: {model_a}")
     print(f"   use_knowledge_distillation: {model_a.use_knowledge_distillation}")
     
-    print("\n📌 Test 2: PhoBERT Dataset B (Knowledge Distillation)")
+    print("\n Test 2: PhoBERT Dataset B (Knowledge Distillation)")
     model_b = create_model("phobert", dataset_type="B", num_epochs=1)
     print(f"   Model: {model_b}")
     print(f"   use_knowledge_distillation: {model_b.use_knowledge_distillation}")
     
-    print("\n📌 Test 3: FlanT5 Dataset A (Standard)")
+    print("\n Test 3: FlanT5 Dataset A (Standard)")
     model_c = create_model("flant5", dataset_type="A", num_epochs=1)
     print(f"   Model: {model_c}")
     print(f"   use_chain_of_thought: {model_c.use_chain_of_thought}")
     
-    print("\n📌 Test 4: FlanT5 Dataset B (Chain-of-Thought)")
+    print("\n Test 4: FlanT5 Dataset B (Chain-of-Thought)")
     model_d = create_model("flant5", dataset_type="B", num_epochs=1)
     print(f"   Model: {model_d}")
     print(f"   use_chain_of_thought: {model_d.use_chain_of_thought}")
     
-    print("\n✅ All tests passed!")
+    print("\n All tests passed!")

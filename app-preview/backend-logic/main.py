@@ -38,9 +38,11 @@ def normalize_video_id(raw: str) -> str:
 
 # CORS
 origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+if not origins:
+    raise RuntimeError("CORS_ORIGINS must be set to at least one origin. Do not use wildcard '*' in production.")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if origins else ["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

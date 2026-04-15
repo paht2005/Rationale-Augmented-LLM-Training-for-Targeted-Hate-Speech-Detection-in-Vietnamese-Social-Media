@@ -1,6 +1,6 @@
 """
 Configuration Module
-Cấu hình cho Multi-Label Classification Pipeline
+Configuration for Multi-Label Classification Pipeline
 """
 
 from pathlib import Path
@@ -11,7 +11,7 @@ DATA_DIR = Path("/kaggle/input/vithsd-experiment/data")
 OUTPUT_DIR = Path("/kaggle/working/outputs")
 
 # ==================== TARGET COLUMNS ====================
-# Các cột chứa nhãn trong file CSV
+# Target label columns in the CSV file
 TARGET_COLUMNS = [
     'individual',
     'groups', 
@@ -32,8 +32,8 @@ TARGET_NAMES = [
 TEXT_COLUMN = 'content'
 
 # ==================== MULTI-LABEL CONFIG ====================
-# 11 labels cho multi-label classification
-# Logic: normal nếu tất cả ≤1, ngược lại ghi rõ target#level
+# 11 labels for multi-label classification
+# Logic: normal if all levels <=1, otherwise specify target#level
 FINAL_LABELS = [
     "normal",
     "individuals#offensive",
@@ -74,7 +74,7 @@ CATEGORY_INDICES = {
 NUM_LABELS = len(FINAL_LABELS)  # 11
 
 # ==================== PROMPTS ====================
-# Prompt template cho multi-label classification (English)
+# Prompt template for multi-label classification
 CLASSIFICATION_PROMPT = """Classify hate speech levels in the following Vietnamese text.
 
 Text: {text}

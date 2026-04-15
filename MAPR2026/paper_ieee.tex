@@ -1,0 +1,785 @@
+% IEEE Conference Paper Format — Revised Version
+% Rationale-Enhanced Targeted Hate Speech Detection for Vietnamese Social Media
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+\usepackage[utf8]{inputenc}
+\usepackage[T5,T1]{fontenc}
+\usepackage[vietnamese,english]{babel}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning,calc,fit}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\title{Rationale-Enhanced Targeted Hate Speech Detection\\for Vietnamese Social Media}
+
+\author{
+\IEEEauthorblockN{An Truong Hoang Thanh\textsuperscript{1,2},~An Nguyen Xuan\textsuperscript{1,2},~Binh Mai Thai\textsuperscript{1,2},~Phat Nguyen Cong\textsuperscript{1,2},~Huong Nguyen Le Quynh\textsuperscript{1,2}}
+\IEEEauthorblockA{
+  \textsuperscript{1}\textit{University of Information Technology (UIT)} \\
+  \textsuperscript{2}\textit{Vietnam National University, Ho Chi Minh City (VNU-HCM)},
+  Vietnam \\
+  \{23520032, 23520023, 23520158, 23521143, 21520255\}@gm.uit.edu.vn
+}
+}
+
+\begin{document}
+\maketitle
+
+% --------------------------------------------------------------------------
+\begin{abstract}
+This paper adapts the HARE (Hate speech detection with Rationale Extraction)
+framework for Vietnamese targeted hate speech detection on the ViTHSD dataset.
+We propose a two-stage QLoRA fine-tuning pipeline for Qwen2.5-3B-Instruct:
+Stage~1 trains a multi-label classifier on 7,540 oversampled examples, while
+Stage~2 performs semantic alignment on 1,221 rationale-enriched tuples generated
+via Gemini 2.0 Flash with Chain-of-Thought (CoT) prompting. In single-run
+controlled experiments on the ViTHSD test set (1,800 samples), the two-stage
+model achieves F1-Micro of 60.26\%. Compared to Qwen2.5 Vanilla (Stage~1 only),
+Stage~2 yields +1.26\% F1-Micro and +2.47\% Precision-Micro but reduces
+F1-Macro from 33.10\% to 30.35\%, revealing a trade-off between aggregate
+precision and per-class fairness: rationale training improves Hate-level
+detection for Politics (+17.41\%) and Groups (+7.61\%) while degrading all
+Offensive-level labels. All results are single-run and require multi-seed
+validation. We additionally present a system demonstration for YouTube comment
+monitoring with rule-based keyword highlighting.
+\end{abstract}
+
+\begin{IEEEkeywords}
+hate speech detection, Vietnamese NLP, chain-of-thought prompting, QLoRA,
+ViTHSD, Qwen2.5
+\end{IEEEkeywords}
+% --------------------------------------------------------------------------
+
+
+% ==========================================================================
+\section{Introduction}\label{sec:intro}
+% ==========================================================================
+
+\subsection{Background and Motivation}
+
+Vietnamese social media platforms---Facebook, YouTube, and TikTok---have become
+primary channels for public discourse, but this openness has enabled a surge in
+toxic and hateful content. The Vietnamese language presents unique challenges
+for automated moderation: it is monosyllabic and tonal, meaning is
+context-dependent, and online users frequently embed hateful messages in
+culturally specific slang (e.g., \foreignlanguage{vietnamese}{\textit{``ba que,''
+``bò đỏ''}}), teencode, sarcasm, and wordplay that evade keyword-based
+filters~\cite{Fortuna2018Survey, Vidgen2020Directions}.
+
+Existing approaches suffer from three limitations.
+First, \textit{lack of explainability}: classifiers provide labels without
+reasoning, undermining moderator trust~\cite{Mathew2021HateXplain}.
+Second, \textit{inability to detect implicit hate}: most models rely on
+surface-level keywords and miss attacks using cultural metaphors or
+sarcasm~\cite{ElSherief2021Latent}.
+Third, \textit{neglect of attack targets}: prior work focuses on toxicity
+severity while overlooking \textit{who} is attacked---an individual, a group,
+or a political entity---information essential for calibrating moderation
+responses~\cite{Sap2020SocialBias}.
+
+\subsection{Task Definition}
+
+We define the \textbf{Vietnamese Targeted Hate Speech Detection Task} as
+follows. Given a Vietnamese social media comment $c$, the system must predict a
+set of labels $\mathcal{L} \subseteq \{T_i\texttt{\#}L_j\}$, where $T_i \in
+\{\text{Individuals, Groups, Religion, Race, Politics}\}$ is the target and
+$L_j \in \{\text{Normal, Clean, Offensive, Hate}\}$ is the severity level. This
+is a \textit{multi-label} task: a single comment may simultaneously attack
+multiple targets at different severity levels, with each target carrying at most
+one severity level. For example:
+
+\smallskip
+\noindent\foreignlanguage{vietnamese}{\textit{``Thằng A ngu thế cũng làm ca sĩ
+(\texttt{Individuals\#Offensive}), bọn fan của nó thì cũng súc vật không kém
+(\texttt{Groups\#Hate})''}}
+\smallskip
+
+\noindent yields two labels: the first clause offends an individual, while the
+second expresses hate toward a fan community.
+
+\subsection{Contributions}
+
+This paper makes four contributions:
+\begin{enumerate}[leftmargin=*, label=\textbf{C\arabic*.}]
+\item \textbf{Task Formalization and Dataset Analysis}: We formalize the
+Vietnamese targeted hate speech detection task and analyze ViTHSD's class
+imbalance and implicit hate challenges (Section~\ref{sec:dataset}).
+\item \textbf{Rationale Annotation Pipeline}: We develop an iterative CoT
+prompt engineering workflow using Gemini 2.0 Flash~\cite{google2025gemini2flash}
+to generate 1,221 rationale-enriched tuples for Vietnamese hate speech. Our
+approach is \textit{thematically} inspired by HARE~\cite{Yang2023HARE} but
+differs architecturally: rationale supervision is used exclusively at training
+time, whereas the original HARE extracts rationales at both training and
+inference (Section~\ref{sec:method}).
+\item \textbf{Two-Stage Fine-Tuning with Honest Analysis}: We propose a
+two-stage QLoRA~\cite{Dettmers2023QLoRA} strategy for
+Qwen2.5-3B-Instruct~\cite{Yang2025Qwen25} and provide transparent analysis of
+both improvements and regressions from Stage~2: gains on Hate-level labels but
+losses on all Offensive-level labels (Section~\ref{sec:results}).
+\item \textbf{System Demonstration}: We present a FastAPI-based prototype with
+YouTube integration and rule-based keyword highlighting
+(Section~\ref{sec:deployment}).
+\end{enumerate}
+
+
+% ==========================================================================
+\section{Related Work}\label{sec:related}
+% ==========================================================================
+
+\subsection{Vietnamese NLP Models}
+
+Vietnamese NLP progressed from static embeddings~\cite{Mikolov2013Efficient,
+Bojanowski2017Enriching} to Transformer-based models~\cite{Vaswani2017Attention,
+Devlin2019BERT}. PhoBERT~\cite{nguyen2020phobert}, trained on 20\,GB of formal
+Vietnamese text (Wikipedia, news), established strong benchmarks but exhibits a
+domain gap on informal social media language. Vietnamese text processing
+typically requires word segmentation tools such as
+VnCoreNLP~\cite{Vu2018VnCoreNLP} due to the language's compound-word structure.
+More recently, PhoGPT~\cite{Nguyen2023PhoGPT} demonstrated generative
+pretraining for Vietnamese, while multilingual models such as
+XLM-R~\cite{Conneau2020XLMR} and Qwen2.5~\cite{Yang2025Qwen25} offer broader
+language coverage through diverse pretraining corpora.
+
+\subsection{Hate Speech Detection and Datasets}
+
+Hate speech detection has matured from keyword-based approaches to neural
+classifiers, as surveyed by Fortuna and Nunes~\cite{Fortuna2018Survey} and
+Vidgen and Derczynski~\cite{Vidgen2020Directions}. A key challenge is
+\textit{implicit hate}---messages that convey bias through sarcasm, metaphor, or
+cultural references without explicit slurs. ElSherief et
+al.~\cite{ElSherief2021Latent} introduced a benchmark specifically for implicit
+hate speech, while Sap et al.~\cite{Sap2020SocialBias} proposed Social Bias
+Frames linking language to its social implications.
+
+For Vietnamese, ViHSD~\cite{10.1007/978-3-030-79457-6_35} was the first
+large-scale dataset (33,400 comments; Clean/Offensive/Hate) but lacks target
+information. ViTHSD~\cite{vithsd} extends the annotation with five target
+categories following an Aspect-Based Sentiment Analysis
+paradigm~\cite{Pontiki2014SemEval4}, enabling multi-label target-severity
+annotation. The ViTHSD paper reports baselines including ViSoBERT (F1-Micro
+51.12\%) and XLM-R (50.84\%) under their experimental protocol.
+
+\subsection{Explainable Detection and CoT Reasoning}
+
+Mathew et al.~\cite{Mathew2021HateXplain} established HateXplain, a foundational
+benchmark for explainable hate speech detection with human-annotated rationales.
+The HARE framework~\cite{Yang2023HARE} extended this by using LLM-generated
+step-by-step rationales to improve both interpretability and classification.
+Chain-of-Thought (CoT) prompting~\cite{Wei2022ChainOfThought} decomposes complex
+reasoning into interpretable chains, with extensions including zero-shot
+CoT~\cite{Kojima2022ZeroShot} and self-consistency
+decoding~\cite{Wang2023SelfConsistency}. Parameter-efficient fine-tuning
+methods---LoRA~\cite{Hu2022LoRA} and QLoRA~\cite{Dettmers2023QLoRA}---enable
+adapting large models on consumer hardware, making CoT-enhanced training feasible
+for resource-constrained settings like ours.
+
+
+% ==========================================================================
+\section{ViTHSD Dataset Analysis}\label{sec:dataset}
+% ==========================================================================
+
+ViTHSD~\cite{vithsd} contains 10,000 Vietnamese social media comments annotated
+with composite labels \texttt{[Target]\#[Level]}. Five target categories
+(Individuals, Groups, Religion, Race, Politics) and four severity levels (Normal,
+Clean, Offensive, Hate) yield 11 final labels: \texttt{normal} plus
+5\,targets\,$\times$\,2\,levels (Offensive, Hate), where each target carries at
+most one level.
+
+\subsection{Statistical Distribution}
+
+Table~\ref{tab:target_dist} shows the target distribution. Individuals dominates
+at ${\sim}60\%$; Politics and Religion are severely underrepresented ($<$5\%
+combined). Religion, with only 24 training samples, is nearly intractable.
+
+\begin{table}[ht]
+\centering
+\caption{Distribution of Samples by Target Category}
+\label{tab:target_dist}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Target} & \textbf{Train} & \textbf{Dev} & \textbf{Test} & \textbf{Total} & \textbf{\%} \\
+\midrule
+Individuals  & 5,480 & 938 & 1,398 & 7,816 & $\sim$60\% \\
+Groups       & 2,977 & 517 & 769   & 4,263 & $\sim$33\% \\
+Race/Ethni.  & 502   & 74  & 129   & 705   & $\sim$5\%  \\
+Politics     & 363   & 57  & 89    & 509   & $\sim$4\%  \\
+Religion     & 24    & 8   & 6     & 38    & $<$0.3\%   \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+Table~\ref{tab:level_dist} shows the severity distribution. Clean dominates,
+requiring models to maintain high recall to surface Hate labels hidden among
+benign comments.
+
+\begin{table}[ht]
+\centering
+\caption{Distribution of Samples by Severity Level}
+\label{tab:level_dist}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Split} & \textbf{Normal} & \textbf{Clean} & \textbf{Offens.} & \textbf{Hate} & \textbf{Total} \\
+\midrule
+Train & 1,520 & 2,480 & 1,169 & 1,831 & 7,000 \\
+Dev   & 263   & 454   & 189   & 295   & 1,201 \\
+Test  & 402   & 618   & 324   & 456   & 1,800 \\
+\midrule
+\textbf{Total} & \textbf{2,185} & \textbf{3,552} & \textbf{1,682} & \textbf{2,582} & \textbf{10,001} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+\subsection{The Implicit Hate Challenge}
+
+A critical characteristic of ViTHSD is \textit{implicit hate speech}---comments
+that carry offensive meaning without explicit profanity. Two examples illustrate
+the challenge:
+
+\begin{enumerate}[leftmargin=*]
+\item \foreignlanguage{vietnamese}{\textit{``Optimusthree với 99\% sức mạnh''}}
+(``Optimusthree at 99\% power''): A sarcastic gaming meme implying the player is
+\textit{extremely weak}. Without cultural knowledge, a model classifies this as
+Clean. Correct: \texttt{Individuals\#Offensive}.
+
+\item \foreignlanguage{vietnamese}{\textit{``Lũ ba que xỏ lá''}}:
+\foreignlanguage{vietnamese}{\textit{``Ba que''}} is political slang for
+supporters of the former South Vietnamese regime;
+\foreignlanguage{vietnamese}{\textit{``xỏ lá''}} means deceitful. Combined:
+\texttt{Politics\#Hate}.
+\end{enumerate}
+
+These cases motivate enriching training data with \textit{Implied Statements}
+(concise paraphrases of hidden intent, 3--8 Vietnamese words) and
+\textit{Rationales} (evidence-grounded explanations).
+
+
+% ==========================================================================
+\section{Methodology}\label{sec:method}
+% ==========================================================================
+
+Our approach follows a two-phase pipeline (Fig.~\ref{fig:pipeline}):
+(1)~\textbf{Annotation}---generating rationales via a commercial LLM; and
+(2)~\textbf{Training}---fine-tuning Qwen2.5-3B-Instruct in two stages.
+Unlike the original HARE~\cite{Yang2023HARE}, which extracts rationales at both
+training and inference time for explainability, our adaptation employs rationale
+supervision exclusively during training to improve classification boundaries;
+the inference pipeline produces only label predictions.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  blk/.style={rectangle, draw, rounded corners=2pt, text centered,
+              text width=2.1cm, minimum height=0.6cm, font=\scriptsize,
+              inner sep=2pt},
+  arr/.style={thick, -{Stealth}},
+  node distance=0.35cm
+]
+\node[blk, fill=blue!12]  (raw)    {ViTHSD\\(10K comments)};
+\node[blk, fill=orange!20, below=of raw]   (gem)    {Gemini 2.0 Flash\\CoT Prompting};
+\node[blk, fill=orange!20, below=of gem]   (filt)   {Quality\\Filtering};
+\node[blk, fill=green!20,  below=of filt]  (rdata)  {Rationale Set\\(1,221 pairs)};
+\node[blk, fill=purple!12, right=2.2cm of raw]   (s1) {Stage 1\\Classifier\\(7,540 data)};
+\node[blk, fill=purple!22, below=of s1]           (s2) {Stage 2\\Semantic Align.\\(1,221 data)};
+\node[blk, fill=red!12,    below=of s2]           (mdl){HARE Model\\Qwen2.5-3B};
+\draw[arr] (raw)   -- (gem);
+\draw[arr] (gem)   -- (filt);
+\draw[arr] (filt)  -- (rdata);
+\draw[arr] (s1)    -- (s2);
+\draw[arr] (s2)    -- (mdl);
+\draw[arr] (raw.east)   to[bend left=18]  node[above, font=\tiny, xshift=4pt]{labels} (s1.west);
+\draw[arr] (rdata.east) to[bend right=18] (s2.west);
+\node[font=\tiny\itshape, above=2pt of raw]  {\textbf{Annotation Phase}};
+\node[font=\tiny\itshape, above=2pt of s1]   {\textbf{Training Phase}};
+\end{tikzpicture}
+\caption{Two-phase pipeline: annotation (left) and two-stage training (right).}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Rationale Generation and Filtering}
+
+We employ Gemini 2.0 Flash~\cite{google2025gemini2flash} as an automated
+annotator. Through three prompt iterations (Table~\ref{tab:prompt_workflow}), we
+converged on a constrained four-step CoT structure: (1)~\textit{Target}---identify
+the entity; (2)~\textit{Implied}---describe hidden meaning in 3--8 Vietnamese
+words; (3)~\textit{Evidence}---extract offensive words/phrases;
+(4)~\textit{Verdict}---assign the label. Output is enforced as structured JSON.
+
+\begin{table}[t]
+\centering
+\caption{Prompt Iteration Workflow for Rationale Generation}
+\label{tab:prompt_workflow}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{p{1.3cm}p{2.2cm}p{2.1cm}}
+\toprule
+\textbf{Phase} & \textbf{Design} & \textbf{Outcome} \\
+\midrule
+P1 & Base Role-Task-Output prompt & Rejected: paraphrase-heavy \\
+P2 & Psychologist persona + few-shot & Rejected: domain drift, false positives \\
+P3 & Expert analyst + constrained CoT + JSON & Adopted: stable, label-consistent \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Generated annotations are filtered in two steps: (1)~\textbf{manual
+verification} by all 5~team members on a stratified sample, and
+(2)~\textbf{automatic consistency check} where each pair is re-fed into Gemini
+for label re-prediction; mismatches are discarded. We acknowledge that using the
+same LLM family for generation and verification may introduce confirmation bias;
+this step is a consistency filter, not a faithfulness guarantee. The final set
+contains \textbf{1,221 tuples} (comment, implied statement, rationale, label).
+
+\subsection{Model Selection}
+
+We select \textbf{Qwen2.5-3B-Instruct}~\cite{Yang2025Qwen25} because: (1)~at
+3B parameters it fits on a single T4 GPU (16\,GB) under 4-bit quantization;
+(2)~it performs competitively on Vietnamese benchmarks among sub-10B models
+compared to Llama~2-7B~\cite{llama} and Gemma-7B~\cite{Mesnard2024Gemma}; and
+(3)~its instruction-following capability natively supports structured output.
+
+\subsection{Two-Stage QLoRA Fine-Tuning}
+
+Both stages use QLoRA~\cite{Dettmers2023QLoRA} with 4-bit NF4 quantization,
+LoRA~\cite{Hu2022LoRA} rank $r{=}8$, $\alpha{=}16$, dropout 0.1, targeting all
+attention and feed-forward projection layers. Input uses the Qwen chat template.
+
+\textbf{Stage~1 (Classification):} The model learns to predict multi-label
+\texttt{[Target]\#[Level]} from the ViTHSD training set. We oversample all
+labels with fewer than 200 training examples via random sampling with
+replacement, adding 540 samples concentrated in Politics, Race, and Religion
+categories, yielding 7,540 training examples. All baselines use the same
+oversampled set. A post-processing step enforces one-level-per-category by
+preferring Hate over Offensive. Hyperparameters: 2~epochs, batch~4, lr
+$2{\times}10^{-4}$, max length 512.
+
+\textbf{Stage~2 (Semantic Alignment):} Starting from the Stage~1 checkpoint,
+training continues on the 1,221-sample rationale set. The input is augmented with
+implied statement and rationale fields in a structured prompt format, teaching the
+model to associate implicit expressions with their true semantic intent.
+Hyperparameters: same as Stage~1. The 1,221 samples are a subset of the original
+training set; thus some comments are seen twice (once plain in Stage~1, once
+rationale-enriched in Stage~2), which may contribute to memorization effects.
+
+\subsection{Inference}
+
+The model generates free-text output (max 50 tokens) parsed via string matching
+against the 11-label vocabulary. The one-level-per-category constraint is
+enforced. If parsing fails (${\sim}4\%$ of test outputs), the comment defaults to
+\texttt{normal}---a systematic bias that likely inflates Normal-class precision
+and suppresses minority-label recall.
+
+
+% ==========================================================================
+\section{Experiments and Results}\label{sec:results}
+% ==========================================================================
+
+\subsection{Experimental Setup}
+
+\textbf{Data and Metrics.} All models are trained on the ViTHSD training split
+(7,000 base samples, oversampled to 7,540) and evaluated on the test set (1,800
+samples). We report F1-Micro, F1-Macro, F1-Samples, Precision, and Recall via
+scikit-learn.
+
+\textbf{Preprocessing.} All models receive raw text with whitespace
+normalization only (collapsing multiple spaces). No Vietnamese word segmentation
+(e.g., VnCoreNLP~\cite{Vu2018VnCoreNLP}) is applied; tokenization is delegated
+to each model's pretrained tokenizer. This disadvantages PhoBERT, which was
+pretrained on segmented Vietnamese, relative to Qwen2.5 and Flan-T5 whose
+subword tokenizers handle unsegmented input natively.
+
+\textbf{Hardware.} All experiments run on NVIDIA T4 GPUs (16\,GB) via Kaggle.
+Total training: ${\sim}$4.5h (Stage~1: ${\sim}$4h, Stage~2: ${\sim}$30min).
+
+\textbf{Models (all retrained under identical conditions):}
+\begin{enumerate}[leftmargin=*]
+\item \textbf{PhoBERT-base}~\cite{nguyen2020phobert}: Encoder-only, batch~16,
+3~epochs, lr $2{\times}10^{-5}$, max length~256. Uses class-weighted
+(\texttt{pos\_weight}) binary cross-entropy.
+\item \textbf{Flan-T5-base}~\cite{chung2022scaling}: Encoder-decoder, batch~8,
+3~epochs, lr $3{\times}10^{-5}$, max output 64 tokens.
+\item \textbf{Qwen2.5-3B Vanilla}: Stage~1 only (no rationale data).
+\item \textbf{HARE (proposed)}: Stage~1 + Stage~2 with rationale data.
+\end{enumerate}
+
+\textbf{Reporting note.} Due to GPU constraints, all results are from
+\textit{single training runs}. Effect sizes should be interpreted as exploratory
+evidence requiring multi-seed confirmation with significance testing.
+
+\subsection{Overall Results}
+
+Table~\ref{tab:overall_perf} presents overall performance. HARE achieves the
+highest F1-Micro (60.26\%) and Precision-Micro (63.47\%). The primary comparison
+for evaluating the rationale contribution is \textbf{HARE vs.\ Qwen Vanilla}
+(isolating Stage~2): +1.26\% F1-Micro, +2.47\% Precision-Micro. However,
+\textbf{F1-Macro drops from 33.10\% to 30.35\%}, indicating that Stage~2
+redistributes model capacity toward frequent categories at the expense of
+rare-category recall---a fairness concern analyzed in
+Section~\ref{subsec:per_label}. The +1.26\% F1-Micro delta is within typical
+QLoRA seed variance (1--3\%) and cannot be confirmed as statistically significant
+without multi-run evaluation.
+
+Comparisons to PhoBERT (+6.14\% F1-Micro) and Flan-T5 (+13.42\%) reflect
+architectural differences (model size, pretraining data, tokenization) rather
+than the rationale contribution specifically.
+
+\begin{table}[ht]
+\centering
+\caption{Multi-label performance on ViTHSD test set (\%). Single-run results.}
+\label{tab:overall_perf}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Metric} &
+\begin{tabular}{@{}c@{}}\textbf{HARE}\end{tabular} &
+\begin{tabular}{@{}c@{}}\textbf{Qwen Van.}\end{tabular} &
+\textbf{PhoBERT} & \textbf{Flan-T5} \\
+\midrule
+F1-Samples   & \textbf{63.45} & 63.32 & 58.01 & 50.74 \\
+F1-Micro     & \textbf{60.26} & 59.00 & 54.12 & 46.84 \\
+F1-Macro     & 30.35 & \textbf{33.10} & 25.86 & 13.11 \\
+\midrule
+Prec-Micro   & \textbf{63.47} & 61.00 & 56.20 & 48.10 \\
+Rec-Micro    & \textbf{57.35} & 56.00 & 53.10 & 45.20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For context, the ViTHSD paper~\cite{vithsd} reports F1-Micro of 51.12\%
+(ViSoBERT) and 50.84\% (XLM-R~\cite{Conneau2020XLMR}) under different protocols;
+these are not directly comparable due to differences in preprocessing, label
+encoding, and oversampling, but situate our results within the broader landscape.
+All four of our retrained models (including PhoBERT at 54.12\%) exceed the
+reported ViSoBERT baseline, suggesting that the oversampled training regime
+and label encoding contribute meaningfully beyond model choice.
+
+\subsection{Per-Label F1 Analysis}\label{subsec:per_label}
+
+Table~\ref{tab:label_f1} presents complete per-label F1 scores. Unlike prior
+presentation, we report \textit{all values} for transparency.
+
+\begin{table}[ht]
+\centering
+\caption{Per-label F1 (\%) on ViTHSD test set. $\dagger$: $<$40 test samples.
+All values reported; bold = best per row.}
+\label{tab:label_f1}
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Label} & \textbf{HARE} & \textbf{Qwen Van.} & \textbf{PhoBERT} & \textbf{Flan-T5} \\
+\midrule
+Normal                  & \textbf{79.84} & 79.70 & 75.31 & 67.32 \\
+Individuals\#Hate       & 61.66 & \textbf{61.90} & 53.65 & 35.83 \\
+Individuals\#Offensive  & 20.14 & \textbf{43.37} & 7.73 & -- \\
+Groups\#Hate            & \textbf{53.44} & 45.83 & 46.03 & 34.93 \\
+Groups\#Offensive       & 7.88  & \textbf{24.19} & -- & -- \\
+Politics\#Hate          & \textbf{54.00} & 36.59 & 29.13 & 2.99  \\
+Politics\#Offensive     & 6.06  & 12.99 & \textbf{21.18} & 0.00 \\
+Race\#Hate              & 28.17 & \textbf{32.88} & 28.57 & 3.12  \\
+Race\#Offensive         & 22.64 & \textbf{26.67} & 22.92 & -- \\
+Religion\#Hate$\dagger$          & --  & -- & -- & -- \\
+Religion\#Offensive$\dagger$     & --  & -- & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Key finding: Hate-vs-Offensive trade-off.} Stage~2 rationale training
+produces a systematic shift: HARE outperforms Vanilla on \textit{Hate}-level
+labels for Politics (+17.41\%) and Groups (+7.61\%), but Vanilla outperforms HARE
+on \textit{every Offensive-level label}---most dramatically on
+Individuals\#Offensive (43.37\% vs.\ 20.14\%) and Groups\#Offensive (24.19\% vs.\
+7.88\%). PhoBERT achieves the highest Politics\#Offensive F1 (21.18\%), exceeding
+both Qwen variants.
+
+This pattern suggests that rationale-enriched training shifts the model's
+decision boundary toward detecting the most severe (Hate) expressions while
+losing sensitivity to the ambiguous Offensive category. The generated rationales
+predominantly explain Hate-level semantics, providing limited signal for the
+Offensive--Hate boundary. This trade-off explains the F1-Macro regression: gains
+concentrated on a few Hate labels do not compensate for losses across all
+Offensive labels in the class-averaged metric.
+
+\textbf{Data scarcity limits.} Religion scores 0\% F1 across \textit{all} models
+(24 training samples). Race\#Hate regresses under HARE ($-$4.71\% vs.\ Vanilla),
+confirming that CoT training amplifies existing data patterns rather than
+creating new knowledge.
+
+\subsection{Discussion}
+
+\textbf{Politics\#Hate} shows the largest HARE gain: 54.00\% F1, +17.41\% over
+Vanilla and +24.87\% over PhoBERT. Vietnamese political hate relies on
+culturally loaded slang (\foreignlanguage{vietnamese}{\textit{``ba que,''
+``bò đỏ''}}) and implicit dehumanization that benefits from rationale-guided
+reasoning. However, the PhoBERT comparison conflates model architecture
+differences (3B generative vs.\ 135M encoder, diverse vs.\ formal pretraining)
+with the rationale effect; only the HARE-vs-Vanilla delta isolates Stage~2.
+
+\textbf{PhoBERT domain gap.} PhoBERT was pretrained on formal Vietnamese only
+(Wikipedia, news) and receives unsegmented input in our setup (see Preprocessing
+above), compounding its disadvantage on informal social media text. Additionally,
+PhoBERT uses class-weighted loss which partially mitigates imbalance but cannot
+compensate for the fundamental architecture gap on implicit expressions.
+
+\textbf{Causal attribution caveat.} Stage~2 differs from Stage~1 in data
+content, format, and training steps. The +1.26\% F1-Micro may result from
+additional gradient updates rather than rationale semantics. Proper isolation
+requires ablation with shuffled rationales or equivalent-size non-rationale
+continuation training---experiments we identify as essential future work.
+
+
+% ==========================================================================
+\section{System Demonstration}\label{sec:deployment}
+% ==========================================================================
+
+To demonstrate practical applicability, we develop a web application for
+Vietnamese hate speech monitoring from YouTube comments, illustrated in
+Fig.~\ref{fig:system}.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  blk/.style={rectangle, draw, rounded corners=2pt, text centered,
+              text width=1.5cm, minimum height=0.55cm, font=\scriptsize,
+              inner sep=2pt},
+  arr/.style={thick, -{Stealth}},
+  node distance=0.35cm
+]
+\node[blk, fill=gray!15]   (url)  {User Input\\(YouTube URL)};
+\node[blk, fill=cyan!20,   below=of url]  (fe)   {Frontend\\React + Vite};
+\node[blk, fill=orange!20, below=of fe]   (be)   {Backend\\FastAPI};
+\node[blk, fill=yellow!20, left=2.0cm of be]  (yt)   {YouTube\\API v3};
+\node[blk, fill=purple!20, right=2.0cm of be] (inf)  {Qwen2.5-3B\\Inference};
+\node[blk, fill=green!20,  below=of be]   (disp) {Label + Keyword\\Highlight Display};
+\draw[arr] (url)  -- (fe);
+\draw[arr] (fe)   -- (be);
+\draw[arr] (be)   -- (yt);
+\draw[arr] (yt)   -- node[above, font=\tiny]{comments} (be);
+\draw[arr] (be)   -- (inf);
+\draw[arr] (inf)  -- node[above, font=\tiny]{labels}   (be);
+\draw[arr] (be)   -- (disp);
+\draw[arr] (disp) to[bend left=55] (fe);
+\end{tikzpicture}
+\caption{System demonstration architecture for YouTube comment monitoring.}
+\label{fig:system}
+\end{figure}
+
+\textbf{Architecture.} A FastAPI backend exposes REST endpoints for single and
+batch comment analysis (up to 200 texts per request). It fetches comments via
+YouTube Data API\,v3, runs Qwen2.5-3B inference with 4-bit quantization, and
+maps the 11 academic labels to three user-facing categories: \textbf{Neutral}
+(Normal + Clean), \textbf{Offensive}, and \textbf{Hate}.
+
+\textbf{Keyword highlighting.} A rule-based lexicon module scans comments for
+known hate terms via case-insensitive longest-match scanning. \textbf{This
+highlighting is independent of the model's internal reasoning}---it does not
+reflect attention weights or rationale training. An attention-based extraction
+module exists in our codebase (using PhoBERT's last-layer CLS attention) but was
+not formally evaluated; developing model-faithful highlighting aligned with
+Qwen2.5 inference is left for future work.
+
+\textbf{Deployment scope.} The prototype targets researcher and moderator use
+cases, not end-user deployment. Given the system's 0\% F1 on Religion and
+${\sim}$54\% on Politics, automated deployment without human oversight would be
+irresponsible (see Section~\ref{sec:conclusion}).
+
+
+% ==========================================================================
+\section{Conclusion}\label{sec:conclusion}
+% ==========================================================================
+
+\subsection{Summary}
+
+We presented a Vietnamese targeted hate speech detection system combining CoT
+rationale annotation with two-stage QLoRA fine-tuning on ViTHSD. In single-run
+experiments, the model achieves 60.26\% F1-Micro. Transparent analysis reveals
+that Stage~2 rationale training creates a Hate-vs-Offensive trade-off:
+improvements on Politics\#Hate (+17.41\% over Vanilla) and Groups\#Hate
+(+7.61\%) are accompanied by regressions on all Offensive-level labels and a
+lower F1-Macro (30.35\% vs.\ 33.10\%).
+
+\subsection{Limitations and Future Work}
+
+\textbf{Statistical validity.} All results are single-run; the +1.26\%
+F1-Micro delta between HARE and Vanilla is within typical seed variance and
+requires multi-seed evaluation (3--5 runs) with significance testing.
+Additional ablations---training on shuffled rationales or equivalent non-rationale
+continuation data---are needed to causally isolate the rationale contribution
+from additional training effects.
+
+\textbf{Methodological gaps.} The ${\sim}$4\% parse-failure rate (defaulting to
+Normal) introduces systematic bias inflating Normal precision; future work should
+report parseable-only metrics and explore constrained decoding. The rationale
+filtering pipeline's use of the same LLM family for generation and verification
+may introduce confirmation bias; cross-family verification and formal
+inter-annotator agreement metrics are needed. The system fails completely on
+Religion (0\% F1, 24 training samples) and should not be deployed for religious
+hate detection without targeted data augmentation.
+
+\subsection{Ethical Considerations}
+
+This system processes politically sensitive Vietnamese content where errors carry
+asymmetric costs. False positives on political speech risk suppressing legitimate
+discourse; false negatives enable harm against vulnerable communities.
+
+\textbf{Fairness gap.} The system's complete failure on Religion (0\% F1) and
+regression on Race creates a false sense of coverage: deploying it without
+disclosure would protect some groups while systematically ignoring others. Any
+deployment must clearly communicate which categories are and are not reliably
+detected.
+
+\textbf{Censorship risk.} With 54\% F1 on Politics\#Hate, roughly half of
+political-category predictions are errors. In the Vietnamese context, where
+political content moderation is a sensitive topic, an automated classifier with
+this error rate could be misused to flag legitimate political criticism. The
+system must function as a \textit{moderator aid} with human review, not as a
+standalone decision-maker.
+
+\textbf{Human oversight.} Any deployment should include human-in-the-loop
+verification, especially for high-stakes categories (Politics, Religion), appeal
+mechanisms for flagged users, and regular bias audits.
+
+% ==========================================================================
+\begin{thebibliography}{99}
+
+\bibitem{10.1007/978-3-030-79457-6_35}
+S.~T. Luu, K.~V. Nguyen, and N.~L.-T. Nguyen, ``A large-scale dataset for hate speech
+detection on Vietnamese social media texts,'' in \textit{Proc. IEA/AIE}, Springer,
+2021, pp. 415--426.
+
+\bibitem{vithsd}
+C.~N. Vo, K.~B. Huynh, S.~T. Luu, and D. Trong-Hop, ``ViTHSD: Exploiting hatred by
+targets for hate speech detection on Vietnamese social media texts,'' \textit{J.
+Comput. Social Sci.}, 2025, doi: 10.1007/s42001-024-00348-6.
+
+\bibitem{nguyen2020phobert}
+D.~Q. Nguyen and A.~T. Nguyen, ``PhoBERT: Pre-trained language models for
+Vietnamese,'' in \textit{Findings ACL: EMNLP 2020}, 2020, pp. 1037--1042.
+
+\bibitem{Yang2025Qwen25}
+A.~Yang \textit{et al.}, ``Qwen2.5 technical report,'' \textit{arXiv:2412.15115},
+2025.
+
+\bibitem{chung2022scaling}
+H.~W. Chung \textit{et al.}, ``Scaling instruction-finetuned language models,''
+\textit{arXiv:2210.11416}, 2022.
+
+\bibitem{google2025gemini2flash}
+Google DeepMind, ``Gemini 2.0 Flash,'' Google AI Studio Documentation, 2025.
+
+\bibitem{llama}
+H.~Touvron \textit{et al.}, ``Llama 2: Open foundation and fine-tuned chat models,''
+\textit{arXiv:2307.09288}, 2023.
+
+\bibitem{Mesnard2024Gemma}
+T.~Mesnard \textit{et al.}, ``Gemma: Open models based on Gemini research and
+technology,'' \textit{arXiv:2403.08295}, 2024.
+
+\bibitem{Mikolov2013Efficient}
+T.~Mikolov, K.~Chen, G.~Corrado, and J.~Dean, ``Efficient estimation of word
+representations in vector space,'' in \textit{Proc. ICLR Workshop}, 2013.
+
+\bibitem{Bojanowski2017Enriching}
+P.~Bojanowski, E.~Grave, A.~Joulin, and T.~Mikolov, ``Enriching word vectors with
+subword information,'' \textit{TACL}, vol.~5, pp. 135--146, 2017.
+
+\bibitem{Yang2023HARE}
+Y.~Yang \textit{et al.}, ``HARE: Explainable hate speech detection with step-by-step
+reasoning,'' in \textit{Findings ACL: EMNLP 2023}, 2023, pp. 5490--5505.
+
+\bibitem{Wei2022ChainOfThought}
+J.~Wei \textit{et al.}, ``Chain-of-thought prompting elicits reasoning in large
+language models,'' in \textit{Proc. NeurIPS}, 2022.
+
+\bibitem{Dettmers2023QLoRA}
+T.~Dettmers, A.~Pagnoni, A.~Holtzman, and L.~Zettlemoyer, ``QLoRA: Efficient
+finetuning of quantized LLMs,'' in \textit{Proc. NeurIPS}, 2023.
+
+\bibitem{Pontiki2014SemEval4}
+M.~Pontiki \textit{et al.}, ``SemEval-2014 task 4: Aspect based sentiment analysis,''
+in \textit{Proc. SemEval 2014}, 2014, pp. 27--35.
+
+\bibitem{Vaswani2017Attention}
+A.~Vaswani \textit{et al.}, ``Attention is all you need,'' in \textit{Proc. NeurIPS},
+2017, pp. 6000--6010.
+
+\bibitem{Devlin2019BERT}
+J.~Devlin, M.-W. Chang, K.~Lee, and K.~Toutanova, ``BERT: Pre-training of deep
+bidirectional transformers,'' in \textit{Proc. NAACL-HLT}, 2019, pp. 4171--4186.
+
+% ---- New references ----
+
+\bibitem{Mathew2021HateXplain}
+B.~Mathew, P.~Saha, S.~M. Yimam, C.~Biemann, P.~Goyal, and A.~Mukherjee,
+``HateXplain: A benchmark dataset for explainable hate speech detection,'' in
+\textit{Proc. AAAI}, 2021, pp. 14867--14875.
+
+\bibitem{Sap2020SocialBias}
+M.~Sap, S.~Gabriel, L.~Qin, D.~Jurafsky, N.~A. Smith, and Y.~Choi, ``Social bias
+frames: Reasoning about social and power implications of language,'' in \textit{Proc.
+ACL}, 2020, pp. 5477--5490.
+
+\bibitem{ElSherief2021Latent}
+M.~ElSherief, C.~Ziems, D.~Muchlinski, V.~Anber, E.~Salesky, R.~Schuchard, and
+D.~Yang, ``Latent hatred: A benchmark for understanding implicit hate speech,'' in
+\textit{Proc. EMNLP}, 2021, pp. 345--363.
+
+\bibitem{Hu2022LoRA}
+E.~J. Hu, Y.~Shen, P.~Wallis, Z.~Allen-Zhu, Y.~Li, S.~Wang, L.~Wang, and W.~Chen,
+``LoRA: Low-rank adaptation of large language models,'' in \textit{Proc. ICLR}, 2022.
+
+\bibitem{Kojima2022ZeroShot}
+T.~Kojima, S.~S. Gu, M.~Reid, Y.~Matsuo, and Y.~Iwasawa, ``Large language models are
+zero-shot reasoners,'' in \textit{Proc. NeurIPS}, 2022.
+
+\bibitem{Wang2023SelfConsistency}
+X.~Wang, J.~Wei, D.~Schuurmans, Q.~Le, E.~Chi, S.~Narang, A.~Chowdhery, and
+D.~Zhou, ``Self-consistency improves chain of thought reasoning in language models,''
+in \textit{Proc. ICLR}, 2023.
+
+\bibitem{Conneau2020XLMR}
+A.~Conneau \textit{et al.}, ``Unsupervised cross-lingual representation learning at
+scale,'' in \textit{Proc. ACL}, 2020, pp. 8440--8451.
+
+\bibitem{Vu2018VnCoreNLP}
+T.~Vu, D.~Q. Nguyen, D.~Q. Nguyen, M.~Dras, and M.~Johnson, ``VnCoreNLP: A
+Vietnamese natural language processing toolkit,'' in \textit{Proc. NAACL: Demos},
+2018, pp. 56--60.
+
+\bibitem{Nguyen2023PhoGPT}
+D.~Q. Nguyen, N.~M. Nguyen, T.~H. Tran, D.~N. Nguyen, and A.~T. Nguyen, ``PhoGPT:
+Generative pre-training for Vietnamese,'' \textit{arXiv:2311.02945}, 2023.
+
+\bibitem{Fortuna2018Survey}
+P.~Fortuna and S.~Nunes, ``A survey on automatic detection of hate speech in text,''
+\textit{ACM Computing Surveys}, vol.~51, no.~4, pp. 1--30, 2018.
+
+\bibitem{Vidgen2020Directions}
+B.~Vidgen and L.~Derczynski, ``Directions in abusive language training data, a
+systematic review: Garbage in, garbage out,'' \textit{PLoS ONE}, vol.~15, no.~12,
+2020.
+
+\end{thebibliography}
+
+\end{document}

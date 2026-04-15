@@ -26,7 +26,10 @@ async def fetch_youtube_comments(
 
     comments: List[Dict[str, Any]] = []
     for item in data.get("items", []):
-        snip = item["snippet"]["topLevelComment"]["snippet"]
+        try:
+            snip = item["snippet"]["topLevelComment"]["snippet"]
+        except (KeyError, TypeError):
+            continue
         comments.append({
             "comment_id": item["snippet"]["topLevelComment"]["id"],
             "author": snip.get("authorDisplayName"),

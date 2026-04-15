@@ -55,6 +55,7 @@ def _resolve_labels_list(labels: List[str], prefer_hate: bool = True) -> List[st
 
 def _parse_output(output: str) -> List[str]:
     import re
+    import logging
 
     cleaned = output.replace("<|im_end|>", "").strip()
     labels_match = re.search(r"labels?:\s*(.+?)$", cleaned, re.IGNORECASE | re.DOTALL)
@@ -73,6 +74,7 @@ def _parse_output(output: str) -> List[str]:
                 break
 
     if not labels:
+        logging.warning("Failed to parse model output, defaulting to 'normal'. Raw output: %s", output[:200])
         labels = ["normal"]
 
     return _resolve_labels_list(labels)

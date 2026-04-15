@@ -1,6 +1,6 @@
 """
 Evaluation Module
-Đánh giá và so sánh các model cho Multi-Label Classification
+Evaluate and compare models for Multi-Label Classification
 """
 
 import json
@@ -18,14 +18,14 @@ from config import FINAL_LABELS, OUTPUT_DIR
 
 
 class Evaluator:
-    """Đánh giá và so sánh kết quả các model (Multi-label)"""
+    """Evaluate and compare model results (Multi-label)"""
     
     def __init__(self, labels: List[str] = FINAL_LABELS):
         self.labels = labels
         self.results: List[Dict[str, Any]] = []
     
     def _convert_to_binary(self, y: List[List[str]]) -> np.ndarray:
-        """Chuyển list of label strings sang binary matrix"""
+        """Convert list of label strings to binary matrix"""
         binary = []
         for labels_list in y:
             row = [0] * len(self.labels)
@@ -38,11 +38,11 @@ class Evaluator:
     
     def evaluate(self, y_true, y_pred, model_name: str, dataset_version: str) -> Dict[str, Any]:
         """
-        Đánh giá một model trên một dataset version (Multi-label)
+        Evaluate a model on a dataset version (Multi-label)
         
         Args:
-            y_true: Ground truth labels (list of label strings hoặc binary matrix)
-            y_pred: Predicted labels (list of label strings hoặc binary matrix)
+            y_true: Ground truth labels (list of label strings or binary matrix)
+            y_pred: Predicted labels (list of label strings or binary matrix)
         """
         # Convert to binary matrix if needed
         if len(y_true) > 0 and isinstance(y_true[0], list) and len(y_true[0]) > 0 and isinstance(y_true[0][0], str):
@@ -107,9 +107,9 @@ class Evaluator:
         return result
     
     def print_result(self, result: Dict[str, Any]):
-        """In kết quả đẹp"""
+        """Print formatted result"""
         print(f"\n{'='*70}")
-        print(f"📊 {result['model']} on Dataset {result['dataset']} (Multi-Label)")
+        print(f" {result['model']} on Dataset {result['dataset']} (Multi-Label)")
         print(f"{'='*70}")
         print(f"  Subset Accuracy (Exact Match): {result['subset_accuracy']:.4f}")
         print(f"  Hamming Loss:                  {result['hamming_loss']:.4f}")
@@ -132,7 +132,7 @@ class Evaluator:
                 print(f"    {label:25s}: {f1:.4f}")
     
     def get_comparison_matrix(self) -> pd.DataFrame:
-        """Tạo ma trận so sánh"""
+        """Create comparison matrix"""
         if not self.results:
             return pd.DataFrame()
         df = pd.DataFrame(self.results)
@@ -140,7 +140,7 @@ class Evaluator:
         return matrix
     
     def get_full_comparison(self) -> pd.DataFrame:
-        """Tạo bảng so sánh đầy đủ"""
+        """Create full comparison table"""
         if not self.results:
             return pd.DataFrame()
         rows = []
@@ -157,46 +157,46 @@ class Evaluator:
         return pd.DataFrame(rows)
     
     def save_results(self, output_dir: Path = OUTPUT_DIR):
-        """Lưu kết quả ra file"""
+        """Save results to file"""
         output_dir.mkdir(parents=True, exist_ok=True)
         json_path = output_dir / "experiment_results.json"
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(self.results, f, ensure_ascii=False, indent=2)
-        print(f"✓ Saved results to {json_path}")
+        print(f"Saved results to {json_path}")
         
         matrix = self.get_comparison_matrix()
         if not matrix.empty:
             csv_path = output_dir / "comparison_matrix.csv"
             matrix.to_csv(csv_path)
-            print(f"✓ Saved comparison matrix to {csv_path}")
+            print(f"Saved comparison matrix to {csv_path}")
         
         full_df = self.get_full_comparison()
         if not full_df.empty:
             csv_path = output_dir / "full_comparison.csv"
             full_df.to_csv(csv_path, index=False)
-            print(f"✓ Saved full comparison to {csv_path}")
+            print(f"Saved full comparison to {csv_path}")
     
     def generate_report(self) -> str:
-        """Tạo báo cáo dạng text"""
+        """Generate text report"""
         report = []
         report.append("=" * 80)
         report.append("MULTI-LABEL EXPERIMENT RESULTS REPORT")
         report.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         report.append("=" * 80)
         
-        report.append("\n📊 COMPARISON MATRIX (F1 Macro)")
+        report.append("\n COMPARISON MATRIX (F1 Macro)")
         report.append("-" * 60)
         matrix = self.get_comparison_matrix()
         if not matrix.empty:
             report.append(matrix.to_string())
         
-        report.append("\n\n📋 FULL COMPARISON")
+        report.append("\n\n FULL COMPARISON")
         report.append("-" * 60)
         full_df = self.get_full_comparison()
         if not full_df.empty:
             report.append(full_df.to_string(index=False))
         
-        report.append("\n\n📝 DETAILED RESULTS")
+        report.append("\n\n DETAILED RESULTS")
         report.append("-" * 60)
         for r in self.results:
             report.append(f"\n{r['model']} - Dataset {r['dataset']}:")
@@ -206,7 +206,7 @@ class Evaluator:
         
         if self.results:
             best = max(self.results, key=lambda x: x['f1_macro'])
-            report.append(f"\n\n🔍 ANALYSIS")
+            report.append(f"\n\n ANALYSIS")
             report.append(f"Best Model: {best['model']} on Dataset {best['dataset']} (F1: {best['f1_macro']:.4f})")
         
         return "\n".join(report)

@@ -1,6 +1,6 @@
 """
 Data Preparation Module
-Đọc và chuẩn bị dữ liệu ViHSD cho Multi-Label Classification
+Read and prepare ViHSD data for Multi-Label Classification
 """
 
 import pandas as pd
@@ -16,45 +16,45 @@ from config import DATA_DIR, FINAL_LABELS, TARGET_COLUMNS, TARGET_NAMES, TEXT_CO
 
 @dataclass
 class DataSample:
-    """Một mẫu dữ liệu"""
+    """A single data sample"""
     text: str
     original_labels: Dict[str, int] = field(default_factory=dict)  # {target: level}
-    multi_labels: List[str] = field(default_factory=list)  # ["normal"] hoặc ["individuals#hate", "groups#offensive", ...]
+    multi_labels: List[str] = field(default_factory=list)  # ["normal"] or ["individuals#hate", "groups#offensive", ...]
 
 
 class TextPreprocessor:
-    """Tiền xử lý text cơ bản"""
+    """Basic text preprocessing"""
     
     def __init__(self):
         pass
     
     def clean_text(self, text: str) -> str:
-        """Làm sạch text cơ bản"""
+        """Basic text cleaning"""
         if not isinstance(text, str):
             return ""
         
-        # Loại bỏ khoảng trắng thừa
+        # Remove extra whitespace
         text = re.sub(r'\s+', ' ', text).strip()
         
         return text
     
     def preprocess(self, text: str) -> str:
-        """Pipeline tiền xử lý"""
+        """Preprocessing pipeline"""
         text = self.clean_text(text)
         return text
 
 
 def get_multi_labels(row: pd.Series) -> List[str]:
     """
-    Chuyển đổi labels gốc sang multi-label format
+    Convert original labels to multi-label format
     
     Logic:
-    - Nếu tất cả targets đều có level 0 hoặc 1 -> ["normal"]
-    - Nếu target nào có level >= 2 -> ghi rõ target#level_name
+    - If all targets have level 0 or 1 -> ["normal"]
+    - If any target has level >= 2 -> specify target#level_name
     
     Level mapping:
     - 0: Clean
-    - 1: Clean (nhưng có dấu hiệu nhẹ)  
+    - 1: Clean (with slight indicators)
     - 2: Offensive
     - 3: Hate
     """
@@ -75,7 +75,7 @@ def get_multi_labels(row: pd.Series) -> List[str]:
 
 
 class ViHSDLoader:
-    """Loader cho ViHSD dataset (Multi-Label)"""
+    """Loader for ViHSD dataset (Multi-Label)"""
     
     def __init__(self, data_dir: Path = DATA_DIR):
         self.data_dir = Path(data_dir)
@@ -83,7 +83,7 @@ class ViHSDLoader:
         self._cache: Dict[str, List[DataSample]] = {}
     
     def load_split(self, split: str = 'train') -> List[DataSample]:
-        """Load một split của dataset
+        """Load a split of the dataset
         
         Args:
             split: 'train', 'dev', 'test'
@@ -94,7 +94,7 @@ class ViHSDLoader:
         if split in self._cache:
             return self._cache[split]
         
-        # Thử đọc file (có thể là .xlsx thật hoặc .xlsx là CSV đổi tên)
+        # Try to read file (could be actual .xlsx or CSV renamed to .xlsx)
         file_path_xlsx = self.data_dir / f'{split}.xlsx'
         file_path_csv = self.data_dir / f'{split}.csv'
         
@@ -145,11 +145,11 @@ class ViHSDLoader:
     
     def prepare_dataset_multilabel(self, split: str = 'train') -> Tuple[List[str], List[List[str]]]:
         """
-        Chuẩn bị dataset cho multi-label classification
+        Prepare dataset for multi-label classification
         
         Returns:
             Tuple[List[str], List[List[str]]]: (texts, list_of_label_lists)
-            Ví dụ: (["text1", "text2"], [["normal"], ["individuals#hate", "groups#offensive"]])
+            Example: (["text1", "text2"], [["normal"], ["individuals#hate", "groups#offensive"]])
         """
         samples = self.load_split(split)
         texts = [s.text for s in samples]
@@ -158,11 +158,11 @@ class ViHSDLoader:
     
     def prepare_dataset_multilabel_binary(self, split: str = 'train') -> Tuple[List[str], List[List[int]]]:
         """
-        Chuẩn bị dataset cho multi-label với binary encoding
+        Prepare dataset for multi-label with binary encoding
         
         Returns:
             Tuple[List[str], List[List[int]]]: (texts, binary_label_matrix)
-            Mỗi row là vector nhị phân cho 11 labels
+            Each row is a binary vector for 11 labels
         """
         texts, labels_list = self.prepare_dataset_multilabel(split)
         
@@ -181,14 +181,14 @@ class ViHSDLoader:
     def prepare_dataset_generative(
         self, 
         split: str = 'train',
-        prompt_template: str = "Phân loại multi-label hate speech: {text}"
+        prompt_template: str = "Classify multi-label hate speech: {text}"
     ) -> Tuple[List[str], List[str]]:
         """
-        Chuẩn bị dataset cho generative models (FlanT5, PhoGPT)
+        Prepare dataset for generative models (FlanT5, PhoGPT)
         
         Returns:
             Tuple[List[str], List[str]]: (prompts, target_outputs)
-            target_outputs là comma-separated labels
+            target_outputs are comma-separated labels
         """
         texts, labels_list = self.prepare_dataset_multilabel(split)
         
@@ -198,7 +198,7 @@ class ViHSDLoader:
         return prompts, targets
     
     def get_label_distribution(self, split: str = 'train') -> Dict[str, int]:
-        """Lấy phân phối của các labels"""
+        """Get distribution of labels"""
         _, labels_list = self.prepare_dataset_multilabel(split)
         
         distribution = {label: 0 for label in FINAL_LABELS}
@@ -210,11 +210,11 @@ class ViHSDLoader:
         return distribution
     
     def print_statistics(self, split: str = 'train'):
-        """In thống kê về dataset"""
+        """Print dataset statistics"""
         samples = self.load_split(split)
         distribution = self.get_label_distribution(split)
         
-        print(f"\n📊 Statistics for {split} split:")
+        print(f"\n Statistics for {split} split:")
         print(f"   Total samples: {len(samples)}")
         print(f"\n   Label distribution:")
         
@@ -229,7 +229,7 @@ def load_dataset_B_json(
     include_rationale: bool = False
 ) -> Tuple:
     """
-    Load Dataset B từ JSON file
+    Load Dataset B from JSON file
     Format:
     {
         "id": 0,
@@ -304,7 +304,7 @@ def load_dataset_B_json(
 
 def load_dataset_A(split: str = 'train', data_dir: Path = DATA_DIR) -> Tuple[List[str], List[List[str]]]:
     """
-    Load Dataset A (ViTHSD gốc, chỉ có content + labels)
+    Load Dataset A (original ViTHSD, only content + labels)
     
     Args:
         split: 'train', 'dev', 'test'
@@ -342,7 +342,7 @@ def prepare_train_test_dataset_A(
     data_dir: Path = DATA_DIR
 ) -> Dict:
     """
-    Chuẩn bị train/dev/test cho Dataset A
+    Prepare train/dev/test for Dataset A
     
     Returns:
         Dict with keys: 'train', 'dev', 'test'
@@ -364,7 +364,7 @@ def prepare_train_test_dataset_B(
     random_state: int = 42
 ) -> Dict:
     """
-    Chuẩn bị train/dev/test cho Dataset B
+    Prepare train/dev/test for Dataset B
     
     Args:
         json_path: Path to JSON file
@@ -412,7 +412,7 @@ if __name__ == "__main__":
     print("=" * 70)
     
     # Test Dataset A
-    print("\n📌 Test Dataset A (ViTHSD gốc):")
+    print("\n Test Dataset A (original ViTHSD):")
     try:
         loader = ViHSDLoader()
         texts, labels = loader.prepare_dataset_multilabel('train')
@@ -424,10 +424,10 @@ if __name__ == "__main__":
                 print(f"   Example: '{texts[i][:50]}...' -> {labels[i]}")
                 break
     except FileNotFoundError as e:
-        print(f"   ⚠️ Dataset A not found: {e}")
+        print(f"   Dataset A not found: {e}")
     
     # Test Dataset B
-    print("\n📌 Test Dataset B (với rationale + implied):")
+    print("\n Test Dataset B (with rationale + implied):")
     try:
         texts, labels, rationale, implied = load_dataset_B(include_rationale=True)
         print(f"   Loaded {len(texts)} samples")
@@ -442,6 +442,6 @@ if __name__ == "__main__":
                 print(f"     Implied: '{implied[i][:50]}...' " if implied[i] else "     Implied: None")
                 break
     except FileNotFoundError as e:
-        print(f"   ⚠️ Dataset B not found: {e}")
+        print(f"   Dataset B not found: {e}")
     
-    print("\n✅ Data preparation module ready!")
+    print("\n Data preparation module ready!")
