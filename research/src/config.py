@@ -94,7 +94,7 @@ Possible labels (select one or more):
 
 Return list of applicable labels, separated by comma:"""
 
-# Simple prompt cho FlanT5
+# Simple prompt for FlanT5
 SIMPLE_PROMPT = "Classify multi-label hate speech: {text}"
 
 # ==================== MODEL CONFIGS ====================

@@ -1361,6 +1361,88 @@ Labels: {labels_text}<|im_end|>"""
         self.is_trained = True
         print(f"  Training completed")
     
+    def train_stage2_alignment(
+        self,
+        pairs: List[Dict[str, str]],
+        rationale_list: List[List[str]] = None,
+        labels_list: List[List[str]] = None,
+        num_epochs: int = 1,
+        learning_rate: float = 5e-5
+    ):
+        """
+        Stage 2: Rationale-augmented continuation training.
+        Continues LoRA training on CoT-formatted data to align model
+        with rationale semantics.
+
+        Args:
+            pairs: List of dicts with 'content' and 'implied' keys.
+            rationale_list: Per-sample rationale lists. If None, empty rationales used.
+            labels_list: Per-sample label lists. If None, defaults to ['normal'].
+            num_epochs: Training epochs for Stage 2 (default 1).
+            learning_rate: Lower LR to avoid catastrophic forgetting.
+        """
+        import torch
+        from torch.utils.data import DataLoader, Dataset
+        from tqdm import tqdm
+
+        if self.model is None or self.tokenizer is None:
+            raise ValueError("Stage 1 must be completed before Stage 2. Call train() first.")
+
+        print(f"[{self.name}] Stage 2: Semantic alignment")
+        print(f"  Pairs: {len(pairs)}, Epochs: {num_epochs}, LR: {learning_rate}")
+
+        training_texts = []
+        for i, pair in enumerate(pairs):
+            content = pair['content']
+            implied = pair['implied']
+            rat = rationale_list[i] if rationale_list and i < len(rationale_list) else []
+            lab = labels_list[i] if labels_list and i < len(labels_list) else ['normal']
+            input_text = self._format_input_cot(content)
+            output_text = self._format_output_cot(lab, rat, implied)
+            training_texts.append(input_text + output_text)
+
+        class TextDataset(Dataset):
+            def __init__(self, texts, tokenizer, max_length):
+                self.encodings = tokenizer(
+                    texts, truncation=True, padding=True,
+                    max_length=max_length, return_tensors='pt'
+                )
+            def __len__(self):
+                return len(self.encodings['input_ids'])
+            def __getitem__(self, idx):
+                return {
+                    'input_ids': self.encodings['input_ids'][idx],
+                    'attention_mask': self.encodings['attention_mask'][idx]
+                }
+
+        dataset = TextDataset(training_texts, self.tokenizer, self.max_length)
+        dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=learning_rate)
+
+        self.model.train()
+        for epoch in range(num_epochs):
+            total_loss = 0
+            progress = tqdm(dataloader, desc=f"  Stage2 Epoch {epoch+1}/{num_epochs}")
+            for batch in progress:
+                input_ids = batch['input_ids'].to(self.device)
+                attention_mask = batch['attention_mask'].to(self.device)
+                optimizer.zero_grad()
+                outputs = self.model(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    labels=input_ids
+                )
+                loss = outputs.loss
+                total_loss += loss.item()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                optimizer.step()
+                progress.set_postfix({'loss': f'{loss.item():.4f}'})
+            avg_loss = total_loss / len(dataloader)
+            print(f"  Stage2 Epoch {epoch+1}: avg_loss = {avg_loss:.4f}")
+
+        print(f"  Stage 2 alignment completed")
+    
     def _format_input_inference(self, text: str) -> str:
         """Format input for INFERENCE - SIMPLIFIED prompt (like experiment version)"""
         labels_str = ", ".join(self.labels)

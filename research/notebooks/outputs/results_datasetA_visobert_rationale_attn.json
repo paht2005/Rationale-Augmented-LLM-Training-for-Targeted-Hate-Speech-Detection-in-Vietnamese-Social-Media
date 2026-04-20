@@ -1,0 +1,58 @@
+{
+  "ViSoBERT_RationaleAttn": {
+    "model": "ViSoBERT",
+    "dataset": "A",
+    "subset_accuracy": 0.3972222222222222,
+    "hamming_loss": 0.14222222222222222,
+    "f1_samples": 0.6088346560846561,
+    "f1_macro": 0.36555088061295943,
+    "f1_micro": 0.5377544320420223,
+    "precision_samples": 0.5583921957671958,
+    "precision_macro": 0.2778147893181044,
+    "precision_micro": 0.42413257379596064,
+    "recall_samples": 0.7475,
+    "recall_macro": 0.6725801060197284,
+    "recall_micro": 0.7345291479820628,
+    "f1_per_label": {
+      "normal": 0.7748156551332955,
+      "individuals#offensive": 0.47596717467760846,
+      "individuals#hate": 0.6005314437555359,
+      "groups#offensive": 0.3474576271186441,
+      "groups#hate": 0.44747612551159616,
+      "religion#offensive": 0.3076923076923077,
+      "religion#hate": 0.0,
+      "race#offensive": 0.22707423580786026,
+      "race#hate": 0.27956989247311825,
+      "politics#offensive": 0.16551724137931034,
+      "politics#hate": 0.3949579831932773
+    },
+    "precision_per_label": {
+      "normal": 0.7614269788182831,
+      "individuals#offensive": 0.3837429111531191,
+      "individuals#hate": 0.5037147102526003,
+      "groups#offensive": 0.23518164435946462,
+      "groups#hate": 0.32475247524752476,
+      "religion#offensive": 0.18181818181818182,
+      "religion#hate": 0.0,
+      "race#offensive": 0.13333333333333333,
+      "race#hate": 0.17410714285714285,
+      "politics#offensive": 0.0967741935483871,
+      "politics#hate": 0.2611111111111111
+    },
+    "recall_per_label": {
+      "normal": 0.7886836027713626,
+      "individuals#offensive": 0.6265432098765432,
+      "individuals#hate": 0.743421052631579,
+      "groups#offensive": 0.6648648648648648,
+      "groups#hate": 0.7192982456140351,
+      "religion#offensive": 1.0,
+      "religion#hate": 0.0,
+      "race#offensive": 0.7647058823529411,
+      "race#hate": 0.7090909090909091,
+      "politics#offensive": 0.5714285714285714,
+      "politics#hate": 0.8103448275862069
+    },
+    "timestamp": "2026-04-18T03:30:33.151934",
+    "n_samples": 1800
+  }
+}
