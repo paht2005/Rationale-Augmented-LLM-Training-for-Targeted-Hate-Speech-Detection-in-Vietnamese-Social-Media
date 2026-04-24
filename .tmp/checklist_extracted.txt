@@ -1,0 +1,71 @@
+
+--- PAGE 1 ---
+Recommendation  CheckList  for  Revising  Your  Paper/Article   Kiet  Van  Nguyen ,  Ngan  Luu-Thuy  Nguyen   Các  tác  giả  kiểm  tra  bài  báo  theo  checklist  trước  khi  nộp  đến  Hội  nghị/Tạp  chí  STT  Nội  dung  Check  
+1  Các  đóng  góp  bài  báo  (contributions)  phải  xuất  hiện  và  nhất  quán  trong  bài  báo:  -  Abstract  -  Introduction  -  Conclusion  
+ 
+2  Các  đóng  góp  trong  Introduction  phải  lần  lượt  là  các  nội  dung  chính  thực  hiện  trong  bài  -  Dataset  đề  xuất  -  Phương  pháp  đề  xuất  -  Các  findings  trong  phân  tích  kết  quả  
+ 
+3  Giới  thiệu  cấu  trúc  bài  báo  trong  phần  cuối  cùng  của  Mục  Introduction,  trước  Mục  Related  Works  
+ 
+4  Đã  check  bài  báo  bản  cuối  cùng  với  Turnitin  dưới  25%  (bao  gồm  cả  Reference)  chưa?  
+ 
+5  Đã  check  ngữ  pháp,  lỗi  chính  tả  từng  câu  trong  bài  báo  bản  cuối  cùng  với  AI  chưa?  
+ 
+6  Tất  cả  các  Bảng  và  Hình  phải  xuất  hiện  trong  nội  dung  bài  báo  chưa?   
+7  Tài  liệu  tham  khảo  ưu  tiên  dạng  chuẩn  của  Tạp  chí/Hội  nghị.  Trừ  trường  hợp  không  tìm  được  mới  dùng  arxiv.  
+ 
+8  Tỉ  lệ  Bảng,  Hình  vừa  phải,  không  quá  to  cũng  không  quá  nhỏ   
+9  Đối  với  bài  tạp  chí,  số  lượng  Hình  và  Bảng  phải  nhiều,  ít  nhất  mỗi  loại  phải  trên  5.  
+ 
+10  Có  định  nghĩ  bài  toán  và  cho  ví  dụ  minh  họa  rõ  ràng  chưa?  Nội  dung  này  có  thể  xuất  hiện  một  trong  2  vị  trí:  Introduction  hoặc  Task  Definition  
+ 
+11  Motivation  (Trả  lời  cho  câu  hỏi  Why)  tại  sao  đề  xuất  bài  toán  này/mô  hình/bộ  dữ  liệu  có  xuất  hiện  trong  Introduction  chưa?  
+ 
+12  Khi  nhắc  đến  bài  toán  trong  NLP,  dùng  thuật  ngữ  Task  không  dùng  Problem.  
+ 
+13  Các  đóng  góp  bài  báo  nên  ghi  rõ  có  bao  nhiêu  đóng  góp,  đó  là  những  đóng  góp  nào?  
+ 
+--- PAGE 2 ---
+14  Khi  đề  xuất  hoặc  thử  nghiệm  các  phương  pháp,  phải  nói  rõ  lý  do  vì  sao  đề  xuất/chọn  các  phương  pháp  
+ 
+15  Cho  bài  báo  có  đóng  góp  dataset,  phân  tích  đặc  điểm  bộ  ngữ  liệu  theo  các  khía  cạnh  ngôn  ngữ  chưa?   
+ 
+16  Có  phân  tích  kết  quả  thử  nghiệm  theo  các  khía  cạnh  ngôn  ngữ  chưa?  Rút  ra  những  kết  luận  gì  từ  những  phân  tích  này?  Có  thể  lý  giải  được  các  nguyên  nhân  khách  quan  
+ 
+17  Tên  bài  báo  phải  là  một  cụm  danh  từ  (Noun  phrase)  hoặc  Cụm  danh  động  ngữ  (V-ing+NP)  
+ 
+18  Kiểm  tra  các  chỗ  đã  cite  đầy  đủ  và  đúng  quy  định  theo  yêu  cầu  của  tạp  chí/hội  nghị  chưa?  
+ 
+19  Khi  nhắc  đến  các  Section/Hình/Bảng  phải  dùng  đến  tính  năng  hyperlink.  
+ 
+20  Không  sử  dụng  các  từ  “below”,  “above”,  …  khi  nhắc  đến  các  tên  Bảng,  tên  Hình.  Vì  đã  định  danh  rõ  ràng  là  table  mấy.  Ví  dụ:  Table  5  below  (chữ  below  thừa).  
+ 
+21  Các  thuật  ngữ/kí  hiệu  dùng  trong  bài  báo  đã  rõ  nghĩa  và  nhất  quán  xuyên  suốt  bài  báo  
+ 
+22  Bảng  và  Hình  phải  đặt  gần  nhất  tại  vị  trí  được  nhắc  đến  trong  nội  dung   
+23  Các  thí  nghiệm  đo  trên  bao  nhiêu  lần  (ít  nhất  5  lần),  sai  số  như  thế  nào  trong  các  thí  nghiệm  
+ 
+24  Bài  báo  đề  xuất  phương  pháp,  cần  được  so  sánh  ít  nhất  với  05  phương  pháp  trong  vòng  5  năm  trở  lại  
+ 
+25  Các  keyword  chính  của  bài  báo  đã  xuất  hiện  trong  Abstraction  chưa?   
+26  Các  đóng  góp  của  bài  báo  lần  lượt  phải  xuất  hiện  trong  các  nội  dung  thực  hiện  chính:  -  Đóng  góp  về  dataset :  Phải  có  01  section  về  dataset,  quá  trình  thu  thập,  gán  nhãn,  đảm  bảo  chất  lượng  thông  qua  các  thông  số  đánh  giá,  phân  tích  đặc  điểm  -  Đóng  góp  về  phương  pháp :  Phải  có  01  section  về  phương  pháp,  lý  do  đề  xuất,  giải  quyết  những  thách  thức  nào,  mô  tả  phương  pháp  thực  hiện  như  thế  nào  -  Đóng  góp  phân  tích :  Phải  có  01  section  về  phân  tích  đặc  điểm  dataset/kết  quả  thử  nghiệm  
+ 
+27  Cần  phải  nói  lý  do  tại  sao  thực  hiện  từng  loại  phân  tích   
+28  Mỗi  section  nên  có  outline  giới  thiệu  trước  khi  viết  chi  tiết   
+--- PAGE 3 ---
+29  Future  work  nên  đi  ra  từ  những  hạn  chế  chưa  giải  quyết  của  mô  hình  dựa  trên  phân  tích  kết  quả  thử  nghiệm  
+ 
+30  Khi  viết  hoặc  mô  tả  về  kết  quả  thí  nghiệm,  hoặc  so  sánh  kết  quả,  cần  phải  có  kết  luận  cuối  cùng  về  kết  quả  thu  được  (VD:  mô  hình  A  đạt  kết  quả  tốt  nhất  với  x%,  mô  hình  A  cao  hơn  mô  hình  B  trong  thí  nghiệm  với  phương  pháp  A  khi  đánh  giá  trên  bộ  dữ  liệu  X) 
+ 
+31  Mỗi  đoạn  văn  phục  vụ  cho  một  ý  chính  muốn  lập  luận   
+32  Mỗi  đoạn  văn  không  quá  dài,  khuyến  khích  từ  5-10  câu/đoạn   
+33  Câu  không  quá  dài,  dùng  câu  đơn  giản,  hạn  chế  dùng  câu  nhiều  mệnh  đề  gây  nhập  nhằng  ngôn  ngữ  -  nhiều  nghĩa  trên  cùng  một  câu  
+ 
+34  Các  câu  phải  đầy  đủ  S-V-O,  luôn  có  một  động  từ  chính  được  chia   
+35  Khi  trình  bày  kết  quả  thí  nghiệm,  cần  chú  ý  ghi  rõ  kết  quả  theo  độ  đo  nào,  và  đơn  vị  đo  (thập  phân  /  phần  trăm)  
+ 
+36  Khuyến  khích  thực  hiện  theo  phương  pháp  ablation  test  đối  với  mô  hình  bao  gồm  nhiều  thành  phần/đặc  trưng  
+ 
+37  Số  liệu  nhiều  trong  bài  báo,  nên  check  các  số  liệu  trong  Bảng/Hình  với  trong  nội  dung  có  khớp  với  nhau  không?  
+ 
+Tổng  điểm  đạt  được  …/37   

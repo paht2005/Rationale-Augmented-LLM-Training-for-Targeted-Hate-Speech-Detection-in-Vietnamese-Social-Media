@@ -1388,8 +1388,16 @@ Labels: {labels_text}<|im_end|>"""
         if self.model is None or self.tokenizer is None:
             raise ValueError("Stage 1 must be completed before Stage 2. Call train() first.")
 
+        trainable_params = sum(param.numel() for param in self.model.parameters() if param.requires_grad)
+        if trainable_params == 0:
+            raise RuntimeError(
+                "No trainable parameters found for Stage 2 alignment. "
+                "Reload the adapter with the training-ready load path before continuing."
+            )
+
         print(f"[{self.name}] Stage 2: Semantic alignment")
         print(f"  Pairs: {len(pairs)}, Epochs: {num_epochs}, LR: {learning_rate}")
+        print(f"  Trainable parameters: {trainable_params:,}")
 
         training_texts = []
         for i, pair in enumerate(pairs):
@@ -1433,6 +1441,11 @@ Labels: {labels_text}<|im_end|>"""
                     labels=input_ids
                 )
                 loss = outputs.loss
+                if not loss.requires_grad:
+                    raise RuntimeError(
+                        "Stage 2 loss is detached from the computation graph. "
+                        "Reload the adapter with the training-ready load path before continuing."
+                    )
                 total_loss += loss.item()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
@@ -1581,6 +1594,146 @@ Output:"""
             return predictions_labels, predictions_raw, all_hate_words
         else:
             return predictions_labels, predictions_raw
+
+    def predict_constrained(self, X_test: List[str], threshold: float = 0.0) -> Tuple[List[List[str]], List[Dict[str, float]]]:
+        """
+        Constrained decoding via teacher-forced label scoring.
+        
+        For each input, computes log P(label_text | prompt) for all 11 labels
+        using autoregressive teacher forcing. Labels with avg log-prob > threshold
+        are predicted as active. Eliminates parse failures entirely.
+        
+        Args:
+            X_test: List of texts to classify
+            threshold: Log-prob threshold for label activation (default 0.0 = auto)
+                       If 0.0, uses relative threshold: top label score minus margin
+        
+        Returns:
+            predictions_labels: Predicted label lists (always valid)
+            label_scores: Per-sample dict of {label: avg_log_prob}
+        """
+        import torch
+        from tqdm import tqdm
+        
+        if not self.is_trained:
+            raise ValueError("Model has not been trained")
+        
+        # Pre-tokenize all valid labels (without special tokens)
+        label_token_ids = {}
+        for label in self.labels:
+            tokens = self.tokenizer.encode(label, add_special_tokens=False)
+            label_token_ids[label] = tokens
+        
+        self.model.eval()
+        predictions_labels = []
+        all_label_scores = []
+        
+        with torch.no_grad():
+            for text in tqdm(X_test, desc="Constrained predicting"):
+                input_text = self._format_input_inference(text)
+                input_enc = self.tokenizer(
+                    input_text, return_tensors='pt', truncation=True,
+                    max_length=self.max_length
+                )
+                input_ids = input_enc['input_ids'].to(self.device)
+                input_len = input_ids.shape[1]
+                
+                # Score each label via teacher forcing
+                scores = {}
+                for label, token_ids in label_token_ids.items():
+                    label_tensor = torch.tensor([token_ids], device=self.device)
+                    full_ids = torch.cat([input_ids, label_tensor], dim=-1)
+                    
+                    outputs = self.model(input_ids=full_ids)
+                    logits = outputs.logits  # (1, seq_len, vocab_size)
+                    log_probs = torch.log_softmax(logits[0], dim=-1)
+                    
+                    # Sum log P(t_i | t_1...t_{i-1}) for each label token
+                    total_lp = 0.0
+                    for i, tid in enumerate(token_ids):
+                        pos = input_len + i - 1  # position that predicts token at input_len + i
+                        total_lp += log_probs[pos, tid].item()
+                    
+                    scores[label] = total_lp / len(token_ids)  # length-normalized
+                
+                all_label_scores.append(scores)
+                
+                # Determine active labels using adaptive threshold:
+                # A label is active if its score is within margin of the best non-normal label
+                sorted_labels = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+                best_score = sorted_labels[0][1]
+                
+                if threshold != 0.0:
+                    active = [l for l, s in scores.items() if s > threshold]
+                else:
+                    # Adaptive: use margin-based selection
+                    # Primary labels: score within 2.0 of best score
+                    margin = 2.0
+                    active = [l for l, s in scores.items() if s >= best_score - margin and l != 'normal']
+                    
+                    # If "normal" has the highest score AND no other label is close, predict normal
+                    if not active or (sorted_labels[0][0] == 'normal' and 
+                                      (len(sorted_labels) < 2 or sorted_labels[0][1] - sorted_labels[1][1] > 1.0)):
+                        active = ['normal']
+                
+                if not active:
+                    active = ['normal']
+                
+                predictions_labels.append(resolve_labels_list(active))
+        
+        return predictions_labels, all_label_scores
+
+    def save_adapter(self, save_dir: str):
+        """Save LoRA adapter and tokenizer to directory."""
+        from pathlib import Path
+        save_path = Path(save_dir)
+        save_path.mkdir(parents=True, exist_ok=True)
+        self.model.save_pretrained(save_path / 'lora_adapter')
+        self.tokenizer.save_pretrained(save_path / 'tokenizer')
+        print(f'  Adapter saved to {save_path}')
+
+    def load_adapter(self, save_dir: str):
+        """Load LoRA adapter and tokenizer from directory."""
+        import torch
+        from pathlib import Path
+        from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+        from peft import PeftModel, prepare_model_for_kbit_training
+        
+        save_path = Path(save_dir)
+        
+        self.tokenizer = AutoTokenizer.from_pretrained(save_path / 'tokenizer', trust_remote_code=True)
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True
+        )
+        
+        base_model = AutoModelForCausalLM.from_pretrained(
+            self.model_name, quantization_config=bnb_config,
+            device_map="auto", trust_remote_code=True
+        )
+
+        base_model = prepare_model_for_kbit_training(base_model)
+        
+        self.model = PeftModel.from_pretrained(
+            base_model,
+            save_path / 'lora_adapter',
+            is_trainable=True
+        )
+        trainable_params = sum(param.numel() for param in self.model.parameters() if param.requires_grad)
+        if trainable_params == 0:
+            raise RuntimeError(
+                f"Loaded adapter from {save_path} but found no trainable parameters. "
+                "The adapter cannot be used for Stage 2 continuation training."
+            )
+
+        self.model.print_trainable_parameters()
+        self.is_trained = True
+        print(f'  Adapter loaded from {save_path}')
 
 
 # =============================================================================

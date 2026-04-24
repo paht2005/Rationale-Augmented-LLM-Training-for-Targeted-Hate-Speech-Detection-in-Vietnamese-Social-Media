@@ -18,15 +18,12 @@ dist/
 */.ipynb_checkpoints/*
 
 # --- Machine Learning & Weights ---
-
 *.bin
-*.pt
 *.safetensors
 *.joblib
 checkpoint-*/
 adapter_model/
-
-
+models/
 
 # --- Frontend (React/Vite) ---
 node_modules/
@@ -39,14 +36,22 @@ Thumbs.db
 .vscode/
 .idea/
 
-# --- video ---
-.mp4
+# --- Video ---
+*.mp4
 
-MAPR2026/
+# --- MAPR2026: only track for_review.pdf ---
+MAPR2026/*
+!MAPR2026/for_review.pdf
 
+# --- docs: only track slide PDF ---
+docs/*
+!docs/IE403.Q11-Nhom2_slide.pdf
 
-# --- docs ---
-docs/IE403.Q11-Nhom2_report.pdf
-docs/report.pdf
+# --- Prompts: only track v4_final ---
+research/prompts/*
+!research/prompts/v4_final/
+
+# --- Dataset: exclude alternative annotation ---
+dataset/processed/dataset_thanhan.json
 docs/report.md
 Paper_Article CheckList.pdf
