@@ -78,21 +78,30 @@ jupyter notebook
 
 ```text
 .
-├── app-preview/                    # Lightweight code preview (no weights required)
-│   ├── backend-logic/              #   FastAPI routes, model wrapper, highlighting, YouTube API
-│   ├── frontend-snippet/           #   HTML entry template
-│   └── sample-outputs/             #   Sample inference JSONs
+├── app-preview/                        # Lightweight code preview (no weights required)
+│   ├── backend-logic/                  #   FastAPI routes, model wrapper, highlighting, YouTube API
+│   ├── frontend-snippet/               #   HTML entry template
+│   └── sample-outputs/                 #   Sample inference JSONs
 ├── dataset/
-│   ├── raw/                        #   Original ViTHSD source files (.xlsx)
-│   └── processed/                  #   Annotated training data (dataset_rationale.json)
+│   ├── raw/                            #   Original ViTHSD source files (.xlsx)
+│   └── processed/                      #   Annotated training data (dataset_rationale.json)
 ├── research/
-│   ├── notebooks/                  #   Baseline & fine-tuning notebooks (Kaggle-compatible)
-│   │   └── experiments/            #     Multi-seed, ablation, and analysis notebooks + outputs
-│   ├── prompts/v4_final/           #   Final prompt templates (implied statement + rationale)
-│   └── src/                        #   Reusable modules: config, data_preparation, models, evaluation
-├── results/figures/                #   Visualizations and live-demo.gif
-├── docs/                           #   Course slides (IE403.Q11-Nhom2_slide.pdf)
-├── MAPR2026/                       #   Paper manuscript (for_review.pdf)
+│   ├── notebooks/                      #   Baseline & fine-tuning notebooks (Kaggle/Colab)
+│   │   └── experiments/                #   Paper revision experiments
+│   │       ├── R1_*.ipynb              #     Multi-seed evaluation (3 seeds × 2 models)
+│   │       ├── R2_ablations.ipynb      #     Shuffled-rationale & plain-continuation ablations
+│   │       ├── R3_R6_R8_analysis.ipynb #     Bootstrap tests, parse failures, rationale quality
+│   │       ├── R4_*.ipynb              #     Constrained decoding (3 seeds)
+│   │       ├── R5_*.ipynb              #     Per-seed ablation notebooks (3 seeds)
+│   │       ├── README_EXPERIMENTS.md   #     Colab setup guide & GPU time estimates
+│   │       └── outputs/                #     Experiment result JSONs & adapter checkpoints
+│   ├── prompts/                        #   Prompt engineering iterations
+│   │   └── v4_final/                   #     Final templates (rationale + implied statement)
+│   └── src/                            #   Reusable modules: config, data_preparation, models, evaluation
+├── results/
+│   └── figures/                        #   Visualizations (live-demo.gif)
+├── docs/                               #   Course slides & reports
+├── MAPR2026/                           #   Paper manuscript & review artifacts
 └── requirements.txt
 ```
 
@@ -144,7 +153,6 @@ The full demo (FastAPI backend + React frontend) is distributed as an external p
 | Sample outputs | `app-preview/sample-outputs/results_datasetA_qwen_stage2.json` |
 | Experiment results | `research/notebooks/experiments/outputs/` |
 | Course slides | `docs/IE403.Q11-Nhom2_slide.pdf` |
-| Paper manuscript | `MAPR2026/for_review.pdf` |
 | Full demo package | [OneDrive](https://nklod-my.sharepoint.com/:f:/g/personal/phatxinhchao_nklod_onmicrosoft_com/IgAYGfiHj2ZsTpr2aebNbSfrAVG0YJ0LkziTmToc1uIn1oY?e=nnp26c) |
 
 ---
