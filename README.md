@@ -309,41 +309,132 @@ docker run -p 8000:8000 hare-backend
 
 ```text
 .
+├── .gitignore                          # Git ignore rules (see ignored dirs below)
+├── LICENSE                             # MIT License
+├── README.md                           # This file
+├── Thumbnail.png                       # Project thumbnail image
+├── requirements.txt                    # Python dependencies (research environment)
+│
 ├── app-preview/                        # Lightweight code preview (no weights required)
 │   ├── backend-logic/                  #   FastAPI routes, model wrapper, highlighting, YouTube API
+│   │   ├── __init__.py
+│   │   ├── config.py                   #     App settings & environment variables
+│   │   ├── highlight.py                #     Lexicon-based span highlighting engine
+│   │   ├── main.py                     #     FastAPI app & route definitions
+│   │   ├── model.py                    #     Qwen2.5 model loading & inference wrapper
+│   │   ├── schemas.py                  #     Pydantic request/response models
+│   │   └── youtube.py                  #     YouTube Data API v3 comment fetcher
 │   ├── frontend-snippet/               #   HTML entry template
+│   │   └── index.html
 │   └── sample-outputs/                 #   Sample inference JSONs
+│       ├── __huggingface_repos__.json
+│       └── results_datasetA_qwen_stage2.json
+│
 ├── dataset/
 │   ├── raw/                            #   Original ViTHSD source files (.xlsx)
-│   └── processed/                      #   Annotated training data (dataset_rationale.json)
-├── demo/
+│   └── processed/
+│       └── dataset_rationale.json      #   1,221 rationale-augmented training samples
+│
+├── demo/                               # ⚠️  IGNORED by .gitignore (distributed via OneDrive)
 │   ├── backend/                        #   Full FastAPI server (Dockerfile included)
-│   │   ├── app/                        #     Application code (main, model, highlight, youtube)
+│   │   ├── Dockerfile                  #     Container deployment config
+│   │   ├── requirements.txt            #     Backend-specific dependencies (PyTorch+CUDA)
+│   │   ├── app/                        #     Application code
+│   │   │   ├── __init__.py
+│   │   │   ├── config.py               #       Pydantic settings (model paths, CORS, API keys)
+│   │   │   ├── highlight.py            #       Unicode-aware keyword span matching
+│   │   │   ├── main.py                 #       FastAPI routes (/analyze, /batch, /youtube)
+│   │   │   ├── model.py                #       Qwen2.5-3B + QLoRA lazy-loading & inference
+│   │   │   ├── schemas.py              #       Request/Response Pydantic schemas
+│   │   │   └── youtube.py              #       Async YouTube comment fetcher (httpx)
 │   │   ├── checkpoints/                #     LoRA adapters & tokenizer (download separately)
-│   │   └── data/                       #     Hate keywords lexicon (JSON)
-│   └── frontend/                       #   React 19 + Vite frontend
-│       └── src/components/             #     Sidebar, InputComment, YoutubeComments, GroupInfo
+│   │   │   ├── offload/
+│   │   │   ├── qwen_datasetA_stage2_lora_adapters/
+│   │   │   └── qwen_datasetA_stage2_tokenizer/
+│   │   └── data/
+│   │       └── hate_keywords.json      #     300+ Vietnamese hate speech keywords
+│   └── frontend/                       #   React 19 + Vite 7 frontend
+│       ├── package.json
+│       ├── vite.config.js
+│       ├── index.html
+│       └── src/
+│           ├── App.jsx                 #     Router: /, /youtube, /group
+│           ├── App.css
+│           ├── main.jsx
+│           └── components/
+│               ├── Sidebar.jsx         #       Navigation sidebar
+│               ├── InputComment.jsx    #       Manual text input & analysis
+│               ├── YoutubeComments.jsx #       YouTube comment stream analyzer
+│               └── GroupInfo.jsx       #       Team & project info page
+│
 ├── research/
 │   ├── notebooks/                      #   Baseline & fine-tuning notebooks (Kaggle/Colab)
-│   │   └── experiments/                #   Paper revision experiments
-│   │       ├── R1_*.ipynb              #     Multi-seed evaluation (3 seeds × 2 models)
-│   │       ├── R2_ablations.ipynb      #     Shuffled-rationale & plain-continuation ablations
-│   │       ├── R3_R6_R8_analysis.ipynb #     Bootstrap tests, parse failures, rationale quality
-│   │       ├── R4_*.ipynb              #     Constrained decoding (3 seeds)
-│   │       ├── R5_*.ipynb              #     Per-seed ablation notebooks (3 seeds)
-│   │       └── outputs/                #     Experiment result JSONs & adapter checkpoints
-│   ├── prompts/                        #   Prompt engineering iterations (v1 → v4)
-│   │   └── v4_final/                   #     Final templates (rationale + implied statement)
-│   └── src/                            #   Reusable modules: config, data_preparation, models, evaluation
-├── models/                             #   Pre-trained model weights (ViSoBERT attention state dict)
+│   │   ├── base-flant5.ipynb           #     Flan-T5-base baseline
+│   │   ├── base-phobert.ipynb          #     PhoBERT-base baseline
+│   │   ├── base-qwen.ipynb             #     Qwen2.5-3B Stage 1 (vanilla)
+│   │   ├── qwen_rationale.ipynb        #     Qwen2.5-3B Stage 2 (rationale-augmented)
+│   │   ├── test_prompts.ipynb          #     Prompt testing & evaluation
+│   │   └── experiments/                #   Paper revision experiments (MAPR2026)
+│   │       ├── R1_multiseed.ipynb      #     Multi-seed orchestrator
+│   │       ├── R1_seed42.ipynb         #     Seed 42 evaluation
+│   │       ├── R1_seed123.ipynb        #     Seed 123 evaluation
+│   │       ├── R1_seed456.ipynb        #     Seed 456 evaluation
+│   │       ├── R2_ablations.ipynb      #     Shuffled-rationale & plain-continuation
+│   │       ├── R3_R6_R8_analysis.ipynb #     Bootstrap tests, parse failures, quality
+│   │       ├── R4_constrained_decoding.ipynb        #  Constrained decoding main
+│   │       ├── R4_seed42_constrained_decoding.ipynb  # Constrained decoding seed 42
+│   │       ├── R4_seed123_constrained_decoding.ipynb # Constrained decoding seed 123
+│   │       ├── R4_seed456_constrained_decoding.ipynb # Constrained decoding seed 456
+│   │       ├── R5_multiseed_ablations.ipynb          # Multi-seed ablation orchestrator
+│   │       ├── R5_seed42_ablations.ipynb             # Ablation seed 42
+│   │       ├── R5_seed123_ablations.ipynb            # Ablation seed 123
+│   │       ├── R5_seed456_ablations.ipynb            # Ablation seed 456
+│   │       └── outputs/                #     Experiment result JSONs & checkpoints
+│   ├── prompts/                        #   Prompt engineering iterations
+│   │   ├── v1_initial/                 #     ⚠️ IGNORED (only v4_final tracked)
+│   │   ├── v2_refined/                 #     ⚠️ IGNORED
+│   │   ├── v3_pre-final/               #     ⚠️ IGNORED
+│   │   └── v4_final/                   #     Final templates (tracked)
+│   │       ├── prompt_implied_statement.txt  # Implied statement extraction prompt
+│   │       └── prompt_rationale.txt          # 4-step CoT rationale generation prompt
+│   └── src/                            #   Reusable Python modules
+│       ├── config.py                   #     Paths, label schema, model hyperparams
+│       ├── data_preparation.py         #     Data loading, preprocessing, oversampling
+│       ├── models.py                   #     Model wrappers (PhoBERT, FlanT5, Qwen QLoRA)
+│       └── evaluation.py              #     Metrics: F1, precision, recall, hamming loss
+│
+├── models/                             # ⚠️  IGNORED by .gitignore (large model weights)
+│   └── visobert_datasetA_rationale_attn_state_dict.pt
+│
 ├── results/
-│   ├── figures/                        #   Visualizations (live-demo.gif)
-│   └── videos/                         #   Demo video (demo_video.mp4)
-├── docs/                               #   Course report, slides, and checklist
-├── MAPR2026/                           #   IEEE paper manuscript (LaTeX) & review artifacts
-├── requirements.txt                    #   Python dependencies (research environment)
-└── LICENSE                             #   MIT License
+│   ├── figures/
+│   │   └── live-demo.gif              #   Animated demo of the web UI
+│   └── videos/                         # ⚠️  *.mp4 IGNORED (demo_video.mp4 on OneDrive)
+│
+├── docs/
+│   ├── IE403.Q11-Nhom2_slide.pdf       #   Course presentation slides (tracked)
+│   └── Rationale_Augmented_LLM_MAPR2026.pdf  # Published paper PDF
+│   # Other docs/* files are IGNORED by .gitignore
+│
+└── MAPR2026/                           # ⚠️  IGNORED (LaTeX sources, only .gitkeep tracked)
+    └── Rationale_Augmented_LLM_MAPR2026.pdf  # Paper PDF (whitelisted in .gitignore)
 ```
+
+### Ignored Directories & Files (`.gitignore`)
+
+| Path | Reason |
+|---|---|
+| `demo/` | Full demo app with model weights — distributed via OneDrive |
+| `output/` | Training output artifacts (large) |
+| `models/` | Model weight files (`*.bin`, `*.safetensors`, `*.pt`) |
+| `MAPR2026/*` | LaTeX source files (only `Rationale_Augmented_LLM_MAPR2026.pdf` tracked) |
+| `docs/*` | Only `IE403.Q11-Nhom2_slide.pdf` and `Rationale_Augmented_LLM_MAPR2026.pdf` tracked |
+| `research/prompts/v1-v3` | Superseded prompt iterations (only `v4_final/` tracked) |
+| `results/videos/*.mp4` | Large video files |
+| `.venv/`, `venv/`, `__pycache__/` | Python environment & cache |
+| `node_modules/` | Frontend dependencies |
+| `.ipynb_checkpoints/` | Jupyter auto-saves |
+| `*.bin`, `*.safetensors` | ML model weight files |
 
 ---
 
@@ -466,13 +557,13 @@ training_data = 1221  # filtered rationale tuples
 
 | Artifact | Location |
 |---|---|
+| **Paper (PDF)** | `docs/Rationale_Augmented_LLM_MAPR2026.pdf` |
 | Live demo GIF | `results/figures/live-demo.gif` |
 | Demo video | `results/videos/demo_video.mp4` |
 | Sample outputs | `app-preview/sample-outputs/results_datasetA_qwen_stage2.json` |
 | Experiment results | `research/notebooks/experiments/outputs/` |
-| Course report | `docs/IE403.Q11-Nhom2_report.pdf` |
 | Course slides | `docs/IE403.Q11-Nhom2_slide.pdf` |
-| IEEE paper (LaTeX) | `MAPR2026/for_review.tex` |
+| Paper LaTeX source | `MAPR2026/` (ignored, available on request) |
 | Full demo package | [OneDrive](https://nklod-my.sharepoint.com/:f:/g/personal/phatxinhchao_nklod_onmicrosoft_com/IgAYGfiHj2ZsTpr2aebNbSfrAVG0YJ0LkziTmToc1uIn1oY?e=nnp26c) |
 
 ---

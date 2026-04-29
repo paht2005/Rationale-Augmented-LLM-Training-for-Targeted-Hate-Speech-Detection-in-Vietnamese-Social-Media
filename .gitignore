@@ -41,10 +41,12 @@ Thumbs.db
 
 MAPR2026/*
 !MAPR2026/.gitkeep
+!MAPR2026/Rationale_Augmented_LLM_MAPR2026.pdf
 
-# --- docs: only track slide PDF ---
+# --- docs: only track specific PDFs ---
 docs/*
 !docs/IE403.Q11-Nhom2_slide.pdf
+!docs/Rationale_Augmented_LLM_MAPR2026.pdf
 
 # --- Prompts: only track v4_final ---
 research/prompts/*
