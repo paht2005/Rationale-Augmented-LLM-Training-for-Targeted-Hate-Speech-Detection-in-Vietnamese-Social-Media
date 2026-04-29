@@ -55,7 +55,7 @@ dataset/processed/dataset_thanhan.json
 docs/report.md
 Paper_Article CheckList.pdf
 
-research/notebooks/experiments/_patch_notebooks.py
+
 research/notebooks/experiments/README_EXPERIMENTS.md
 
 *.log

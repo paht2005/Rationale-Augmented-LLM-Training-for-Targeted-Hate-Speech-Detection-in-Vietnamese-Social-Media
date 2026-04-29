@@ -48,11 +48,11 @@
 
 | | |
 |---|---|
-| 🧠 **Two-stage QLoRA fine-tuning** | Stage 1 trains multi-label classification on 7,540 oversampled examples; Stage 2 continues with 1,221 CoT-rationale tuples for implicit hate pattern learning. |
-| 📝 **1,221 human-verified rationale tuples** | Generated via Gemini 2.0 Flash with three prompt iterations (quality: 40 → 67 → 89/100) and automatic consistency filtering (16% acceptance rate). |
-| 📊 **Boundary redistribution finding** | Rationale training consistently shifts predictions toward Offensive-level labels (+8.35 avg F1) while Hate-level declines (−2.64 avg F1), verified across 3 seeds with ablation controls. |
-| 🔍 **Rationale-to-span highlighting** | Unicode-aware span mapping projects model evidence back to original text for interpretable moderation. |
-| 🚀 **Real-time demo** | FastAPI backend + React frontend with YouTube comment stream integration. |
+|  **Two-stage QLoRA fine-tuning** | Stage 1 trains multi-label classification on 7,540 oversampled examples; Stage 2 continues with 1,221 CoT-rationale tuples for implicit hate pattern learning. |
+|  **1,221 human-verified rationale tuples** | Generated via Gemini 2.0 Flash with three prompt iterations (quality: 40 → 67 → 89/100) and automatic consistency filtering (16% acceptance rate). |
+|  **Boundary redistribution finding** | Rationale training consistently shifts predictions toward Offensive-level labels (+8.35 avg F1) while Hate-level declines (−2.64 avg F1), verified across 3 seeds with ablation controls. |
+|  **Rationale-to-span highlighting** | Unicode-aware span mapping projects model evidence back to original text for interpretable moderation. |
+|  **Real-time demo** | FastAPI backend + React frontend with YouTube comment stream integration. |
 
 ---
 
