@@ -4,7 +4,7 @@
   </a>
 </p>
 
-<h1 align="center">HARE: Rationale-Augmented Training for Targeted Hate Speech Detection in Vietnamese Social Media</h1>
+<h1 align="center">Rationale-Augmented LLM Training for Targeted Hate Speech Detection in Vietnamese Social Media</h1>
 
 <p align="center">
   <img src="Thumbnail.png" alt="HARE project thumbnail" width="420" />
@@ -181,8 +181,8 @@ ViTHSD comments ──→ Gemini 2.0 Flash ──→ Implied statements (human-v
 ### Installation
 
 ```bash
-git clone https://github.com/paht2005/IE403.Q11_Hate-Speech-Detection-and-Highlighting-for-Vietnamese-Project.git
-cd IE403.Q11_Hate-Speech-Detection-and-Highlighting-for-Vietnamese-Project
+git clone https://github.com/paht2005/Rationale-Augmented-LLM-Training-for-Targeted-Hate-Speech-Detection-in-Vietnamese-Social-Media.git
+cd Rationale-Augmented-LLM-Training-for-Targeted-Hate-Speech-Detection-in-Vietnamese-Social-Media
 
 python -m venv .venv
 source .venv/bin/activate   # macOS/Linux
@@ -500,7 +500,7 @@ If this repository supports your research, please cite:
   title   = {Rationale-Augmented LLM Training for Targeted Hate Speech Detection in Vietnamese Social Media},
   author  = {Truong, An Hoang-Thanh and Nguyen, Phat Cong and Nguyen, An Xuan and Mai, Binh Thai and Nguyen, Huong Le-Quynh and Huynh, Tin Van},
   year    = {2026},
-  url     = {https://github.com/paht2005/IE403.Q11_Hate-Speech-Detection-and-Highlighting-for-Vietnamese-Project}
+  url     = {https://github.com/paht2005/Rationale-Augmented-LLM-Training-for-Targeted-Hate-Speech-Detection-in-Vietnamese-Social-Media}
 }
 ```
 
@@ -513,5 +513,5 @@ This project is licensed under the [MIT License](./LICENSE).
 ---
 
 <p align="center">
-  <sub>Made with 🔥 at University of Information Technology, VNU-HCM</sub>
+  <sub>Made with passion at University of Information Technology, VNU-HCM</sub>
 </p>
